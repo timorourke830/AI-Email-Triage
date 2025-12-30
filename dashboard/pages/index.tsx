@@ -39,6 +39,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<EmailStatus | ''>('');
   const [page, setPage] = useState(1);
+  const [connectedEmail, setConnectedEmail] = useState<string | null>(null);
 
   const handleSignOut = async () => {
     const supabase = getSupabaseBrowserClient();
@@ -123,6 +124,24 @@ export default function Home() {
     loadEmails();
   }, [loadEmails]);
 
+  // Fetch connected email address from settings
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const res = await fetch('/api/settings');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.settings?.email_address) {
+            setConnectedEmail(data.settings.email_address);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch settings:', err);
+      }
+    };
+    fetchSettings();
+  }, []);
+
   return (
     <>
       <Head>
@@ -152,6 +171,13 @@ export default function Home() {
         </header>
 
         <main style={styles.main}>
+          {/* Connected email indicator */}
+          {connectedEmail && (
+            <div style={styles.connectedEmail}>
+              Triaging: <strong>{connectedEmail}</strong>
+            </div>
+          )}
+
           {/* Filters */}
           <div style={styles.filters}>
             <select
@@ -274,6 +300,15 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '24px 32px',
     maxWidth: '1200px',
     margin: '0 auto',
+  },
+  connectedEmail: {
+    fontSize: '14px',
+    color: '#4b5563',
+    marginBottom: '16px',
+    padding: '8px 12px',
+    backgroundColor: '#f3f4f6',
+    borderRadius: '6px',
+    display: 'inline-block',
   },
   filters: {
     display: 'flex',

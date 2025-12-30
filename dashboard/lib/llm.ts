@@ -18,8 +18,10 @@ const CLASSIFICATION_PROMPT = `You are an email classification assistant. Analyz
 - spam: Unsolicited or irrelevant emails
 - other: Emails that don't fit other categories
 
+IMPORTANT: You MUST always return a classification. If you are uncertain or the email doesn't clearly fit a specific category, use "other" with a lower confidence score (0.5-0.7). Never refuse to classify an email.
+
 Respond with a JSON object containing:
-- classification: one of the categories above
+- classification: one of the categories above (REQUIRED - always provide one)
 - confidence: a number between 0 and 1 indicating your confidence
 - reasoning: a brief explanation of why you chose this classification
 
@@ -172,15 +174,28 @@ class LLMClient {
   ): Promise<{ result: ClassificationResult | null; error: string | null }> {
     const prompt = fillTemplate(CLASSIFICATION_PROMPT, { from, subject, body });
 
+    // Fallback classification for when AI fails
+    const fallbackClassification: ClassificationResult = {
+      classification: 'other',
+      confidence: 0.5,
+      reasoning: 'Automatic fallback classification due to processing error',
+    };
+
     try {
       const response = await this.complete(prompt);
       const { data, error } = parseAndValidate(response, ClassificationSchema);
-      return { result: data, error };
+
+      // If parsing failed, return fallback classification instead of null
+      if (error || !data) {
+        console.warn(`Classification parsing failed: ${error}. Using fallback.`);
+        return { result: fallbackClassification, error: null };
+      }
+
+      return { result: data, error: null };
     } catch (err) {
-      return {
-        result: null,
-        error: err instanceof Error ? err.message : 'Classification failed',
-      };
+      // On any error, return fallback classification instead of null
+      console.error('Classification error:', err instanceof Error ? err.message : err);
+      return { result: fallbackClassification, error: null };
     }
   }
 
