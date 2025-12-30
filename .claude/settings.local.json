@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm install)",
+      "Bash(pnpm dev)",
+      "Bash(pnpm worker:*)",
+      "Bash(tasklist:*)",
+      "Bash(curl:*)",
+      "Bash(pnpm add:*)",
+      "Bash(pnpm ingest:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill:*)",
+      "Bash(tree:*)",
+      "Bash(xargs:*)",
+      "Bash(npx tsc:*)",
+      "Bash(pnpm exec tsc:*)"
+    ]
+  }
+}
