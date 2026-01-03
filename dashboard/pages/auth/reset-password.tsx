@@ -17,11 +17,14 @@ export default function ResetPasswordPage() {
 
   // Track if we've already set the state to avoid race conditions
   const stateSetRef = useRef(false);
+  const codeExchangedRef = useRef(false);
 
   useEffect(() => {
+    // Wait for router to be ready
+    if (!router.isReady) return;
+
     const supabase = getSupabaseBrowserClient();
     let mounted = true;
-    let checkTimeout: NodeJS.Timeout;
 
     // Helper to set page state only once
     const setStateOnce = (state: PageState) => {
@@ -32,7 +35,6 @@ export default function ResetPasswordPage() {
     };
 
     // Listen for auth state changes
-    // With PKCE flow, we may get SIGNED_IN instead of PASSWORD_RECOVERY
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event: AuthChangeEvent, session: Session | null) => {
         if (!mounted) return;
@@ -48,53 +50,94 @@ export default function ResetPasswordPage() {
       }
     );
 
-    // Check for existing session
-    // The PKCE token exchange happens automatically when Supabase client initializes
-    // and detects the token params in the URL. We need to wait for this to complete.
-    const checkSession = async () => {
-      // Give the automatic token exchange time to complete
-      // The Supabase client needs a moment to process URL params
-      await new Promise(resolve => setTimeout(resolve, 500));
+    // Handle PKCE code exchange
+    const handleAuth = async () => {
+      // Check for code parameter in URL (PKCE flow)
+      const code = router.query.code as string | undefined;
 
-      if (!mounted || stateSetRef.current) return;
+      // Also check URL hash for access_token (implicit flow fallback)
+      const hash = typeof window !== 'undefined' ? window.location.hash : '';
+      const hashParams = new URLSearchParams(hash.replace('#', ''));
+      const accessToken = hashParams.get('access_token');
+      const type = hashParams.get('type');
 
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
-      console.log('[reset-password] Session check:', {
-        hasSession: !!session,
-        error: sessionError?.message,
-        stateAlreadySet: stateSetRef.current
+      console.log('[reset-password] URL params:', {
+        code: !!code,
+        accessToken: !!accessToken,
+        type,
+        fullQuery: router.query
       });
 
-      if (session) {
-        setStateOnce('ready');
-      } else {
-        // No session yet - wait a bit more for the automatic exchange
-        // then do a final check
-        checkTimeout = setTimeout(async () => {
-          if (!mounted || stateSetRef.current) return;
+      // If we have a code, exchange it for a session (PKCE flow)
+      if (code && !codeExchangedRef.current) {
+        codeExchangedRef.current = true;
+        console.log('[reset-password] Exchanging code for session...');
 
-          const { data: { session: finalSession } } = await supabase.auth.getSession();
+        try {
+          const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
 
-          console.log('[reset-password] Final session check:', !!finalSession);
-
-          if (finalSession) {
-            setStateOnce('ready');
-          } else {
+          if (exchangeError) {
+            console.error('[reset-password] Code exchange failed:', exchangeError.message);
             setStateOnce('invalid');
+            return;
           }
-        }, 2000);
+
+          if (data.session) {
+            console.log('[reset-password] Code exchange successful, session established');
+            setStateOnce('ready');
+            return;
+          }
+        } catch (err) {
+          console.error('[reset-password] Code exchange error:', err);
+          setStateOnce('invalid');
+          return;
+        }
+      }
+
+      // If we have an access_token in hash (implicit flow), Supabase client handles it
+      // Just wait a moment for the client to process
+      if (accessToken && type === 'recovery') {
+        console.log('[reset-password] Access token in hash, waiting for client to process...');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+
+      // Check for existing session
+      if (!stateSetRef.current) {
+        const { data: { session } } = await supabase.auth.getSession();
+
+        console.log('[reset-password] Session check:', !!session);
+
+        if (session) {
+          setStateOnce('ready');
+        } else if (!code && !accessToken) {
+          // No code, no token, no session - invalid link
+          console.log('[reset-password] No auth params and no session - invalid');
+          setStateOnce('invalid');
+        } else {
+          // Had params but no session yet - wait a bit more
+          setTimeout(async () => {
+            if (!mounted || stateSetRef.current) return;
+
+            const { data: { session: finalSession } } = await supabase.auth.getSession();
+            console.log('[reset-password] Final session check:', !!finalSession);
+
+            if (finalSession) {
+              setStateOnce('ready');
+            } else {
+              setStateOnce('invalid');
+            }
+          }, 2000);
+        }
       }
     };
 
-    checkSession();
+    handleAuth();
 
     return () => {
       mounted = false;
       subscription.unsubscribe();
-      if (checkTimeout) clearTimeout(checkTimeout);
     };
-  }, []);
+  }, [router.isReady, router.query]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
