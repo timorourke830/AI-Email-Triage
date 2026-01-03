@@ -15,6 +15,7 @@ export default function EmailPage() {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const fetchEmail = async () => {
     if (!id || typeof id !== 'string') return;
@@ -44,7 +45,12 @@ export default function EmailPage() {
 
     try {
       await approveEmail(id, editedReply);
-      await fetchEmail(); // Refresh data
+      // Show success message
+      setSuccessMessage('Email sent successfully!');
+      // Redirect to dashboard after a brief delay
+      setTimeout(() => {
+        router.push('/');
+      }, 1500);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to approve email');
     }
@@ -90,6 +96,14 @@ export default function EmailPage() {
       </Head>
 
       <div style={styles.container}>
+        {/* Success Toast */}
+        {successMessage && (
+          <div style={styles.toast}>
+            <span style={styles.toastIcon}>✓</span>
+            {successMessage}
+          </div>
+        )}
+
         <header style={styles.header}>
           <Link href="/" style={styles.backLink}>
             &larr; Back to Dashboard
@@ -114,6 +128,28 @@ const styles: Record<string, React.CSSProperties> = {
   container: {
     minHeight: '100vh',
     backgroundColor: '#f9fafb',
+    position: 'relative',
+  },
+  toast: {
+    position: 'fixed',
+    top: '20px',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    backgroundColor: '#059669',
+    color: 'white',
+    padding: '12px 24px',
+    borderRadius: '8px',
+    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+    zIndex: 1000,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    fontSize: '14px',
+    fontWeight: 500,
+  },
+  toastIcon: {
+    fontSize: '16px',
+    fontWeight: 'bold',
   },
   header: {
     backgroundColor: 'white',
