@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
@@ -6,25 +6,6 @@ import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
 import { getSupabaseBrowserClient } from '@/lib/supabase';
 
 type PageState = 'loading' | 'ready' | 'invalid' | 'success';
-
-/**
- * Check for valid session with retry logic.
- * The session may take a moment to be fully available after navigation.
- */
-async function checkSessionWithRetry(maxAttempts = 5, delayMs = 300): Promise<boolean> {
-  const supabase = getSupabaseBrowserClient();
-
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session) {
-      return true;
-    }
-    if (attempt < maxAttempts - 1) {
-      await new Promise(resolve => setTimeout(resolve, delayMs));
-    }
-  }
-  return false;
-}
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -34,32 +15,75 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState<string | null>(null);
   const [pageState, setPageState] = useState<PageState>('loading');
 
+  // Track if we've already set the state to avoid race conditions
+  const stateSetRef = useRef(false);
+
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
     let mounted = true;
+    let checkTimeout: NodeJS.Timeout;
+
+    // Helper to set page state only once
+    const setStateOnce = (state: PageState) => {
+      if (mounted && !stateSetRef.current) {
+        stateSetRef.current = true;
+        setPageState(state);
+      }
+    };
 
     // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
-      if (!mounted) return;
+    // With PKCE flow, we may get SIGNED_IN instead of PASSWORD_RECOVERY
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event: AuthChangeEvent, session: Session | null) => {
+        if (!mounted) return;
 
-      // PASSWORD_RECOVERY or SIGNED_IN with session means we can reset password
-      if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session)) {
-        setPageState('ready');
+        console.log('[reset-password] Auth event:', event, 'Session:', !!session);
+
+        // PASSWORD_RECOVERY is the ideal event, but PKCE may only fire SIGNED_IN
+        if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') {
+          if (session) {
+            setStateOnce('ready');
+          }
+        }
       }
-    });
+    );
 
     // Check for existing session
-    // User arrives here from /auth/confirm after successful token exchange
+    // The PKCE token exchange happens automatically when Supabase client initializes
+    // and detects the token params in the URL. We need to wait for this to complete.
     const checkSession = async () => {
-      const hasSession = await checkSessionWithRetry();
+      // Give the automatic token exchange time to complete
+      // The Supabase client needs a moment to process URL params
+      await new Promise(resolve => setTimeout(resolve, 500));
 
-      if (mounted) {
-        if (hasSession) {
-          setPageState('ready');
-        } else {
-          // No session - user likely navigated here directly without valid token
-          setPageState('invalid');
-        }
+      if (!mounted || stateSetRef.current) return;
+
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+      console.log('[reset-password] Session check:', {
+        hasSession: !!session,
+        error: sessionError?.message,
+        stateAlreadySet: stateSetRef.current
+      });
+
+      if (session) {
+        setStateOnce('ready');
+      } else {
+        // No session yet - wait a bit more for the automatic exchange
+        // then do a final check
+        checkTimeout = setTimeout(async () => {
+          if (!mounted || stateSetRef.current) return;
+
+          const { data: { session: finalSession } } = await supabase.auth.getSession();
+
+          console.log('[reset-password] Final session check:', !!finalSession);
+
+          if (finalSession) {
+            setStateOnce('ready');
+          } else {
+            setStateOnce('invalid');
+          }
+        }, 2000);
       }
     };
 
@@ -68,6 +92,7 @@ export default function ResetPasswordPage() {
     return () => {
       mounted = false;
       subscription.unsubscribe();
+      if (checkTimeout) clearTimeout(checkTimeout);
     };
   }, []);
 
