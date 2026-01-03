@@ -1,7 +1,7 @@
 import type { NextApiResponse } from 'next';
-import Imap from 'imap';
 import nodemailer from 'nodemailer';
 import { withAuth, AuthenticatedRequest } from '@/lib/auth';
+import { testGmailConnection } from '@/lib/gmail-imap';
 
 interface TestConnectionRequest {
   email_address: string;
@@ -9,70 +9,20 @@ interface TestConnectionRequest {
   email_provider: 'gmail' | 'outlook';
 }
 
-interface EmailConfig {
-  imap: {
-    host: string;
-    port: number;
-  };
-  smtp: {
-    host: string;
-    port: number;
-  };
+interface SmtpConfig {
+  host: string;
+  port: number;
 }
 
-const EMAIL_CONFIGS: Record<string, EmailConfig> = {
-  gmail: {
-    imap: { host: 'imap.gmail.com', port: 993 },
-    smtp: { host: 'smtp.gmail.com', port: 587 },
-  },
-  outlook: {
-    imap: { host: 'imap-mail.outlook.com', port: 993 },
-    smtp: { host: 'smtp-mail.outlook.com', port: 587 },
-  },
+const SMTP_CONFIGS: Record<string, SmtpConfig> = {
+  gmail: { host: 'smtp.gmail.com', port: 587 },
+  outlook: { host: 'smtp-mail.outlook.com', port: 587 },
 };
-
-async function testImapConnection(
-  email: string,
-  password: string,
-  config: EmailConfig['imap']
-): Promise<{ success: boolean; error?: string }> {
-  return new Promise((resolve) => {
-    const imap = new Imap({
-      user: email,
-      password: password,
-      host: config.host,
-      port: config.port,
-      tls: true,
-      tlsOptions: { rejectUnauthorized: false },
-      connTimeout: 10000,
-      authTimeout: 10000,
-    });
-
-    const timeout = setTimeout(() => {
-      imap.end();
-      resolve({ success: false, error: 'Connection timeout' });
-    }, 15000);
-
-    imap.once('ready', () => {
-      clearTimeout(timeout);
-      imap.end();
-      resolve({ success: true });
-    });
-
-    imap.once('error', (err: Error) => {
-      clearTimeout(timeout);
-      imap.end();
-      resolve({ success: false, error: err.message });
-    });
-
-    imap.connect();
-  });
-}
 
 async function testSmtpConnection(
   email: string,
   password: string,
-  config: EmailConfig['smtp']
+  config: SmtpConfig
 ): Promise<{ success: boolean; error?: string }> {
   return new Promise((resolve) => {
     const transporter = nodemailer.createTransport({
@@ -113,83 +63,58 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     });
   }
 
-  const config = EMAIL_CONFIGS[email_provider];
-  if (!config) {
+  // Outlook should use OAuth, not app passwords
+  if (email_provider === 'outlook') {
+    return res.status(400).json({
+      error: 'Outlook requires OAuth authentication',
+      message: 'Please use the "Connect with Microsoft" button instead of entering credentials manually.',
+    });
+  }
+
+  if (email_provider !== 'gmail') {
     return res.status(400).json({
       error: 'Invalid provider',
       message: 'email_provider must be "gmail" or "outlook"',
     });
   }
 
-  // Test IMAP connection first
-  const imapResult = await testImapConnection(
-    email_address,
-    email_password,
-    config.imap
-  );
+  // Test Gmail IMAP connection using imapflow
+  console.log(`[test-connection] Testing Gmail IMAP for ${email_address}`);
+  const imapResult = await testGmailConnection({
+    email: email_address,
+    appPassword: email_password,
+  });
 
   if (!imapResult.success) {
-    let errorMessage = imapResult.error || 'IMAP connection failed';
-
-    // Provide more helpful error messages for Outlook
-    if (email_provider === 'outlook') {
-      errorMessage = enhanceOutlookError(errorMessage);
-    }
-
+    console.log(`[test-connection] Gmail IMAP failed: ${imapResult.error}`);
     return res.status(400).json({
       success: false,
-      error: errorMessage,
+      error: imapResult.error || 'IMAP connection failed',
       type: 'imap',
     });
   }
 
+  console.log(`[test-connection] Gmail IMAP successful, testing SMTP...`);
+
   // Test SMTP connection
+  const smtpConfig = SMTP_CONFIGS[email_provider];
   const smtpResult = await testSmtpConnection(
     email_address,
     email_password,
-    config.smtp
+    smtpConfig
   );
 
   if (!smtpResult.success) {
-    let errorMessage = smtpResult.error || 'SMTP connection failed';
-
-    // Provide more helpful error messages for Outlook
-    if (email_provider === 'outlook') {
-      errorMessage = enhanceOutlookError(errorMessage);
-    }
-
+    console.log(`[test-connection] Gmail SMTP failed: ${smtpResult.error}`);
     return res.status(400).json({
       success: false,
-      error: errorMessage,
+      error: smtpResult.error || 'SMTP connection failed',
       type: 'smtp',
     });
   }
 
+  console.log(`[test-connection] All tests passed for ${email_address}`);
   return res.status(200).json({ success: true });
-}
-
-/**
- * Enhance error messages for Outlook users to explain that
- * Microsoft has deprecated basic auth for personal accounts.
- */
-function enhanceOutlookError(error: string): string {
-  const lowerError = error.toLowerCase();
-
-  // Check for common auth-related errors
-  if (
-    lowerError.includes('forbidden') ||
-    lowerError.includes('authentication failed') ||
-    lowerError.includes('invalid credentials') ||
-    lowerError.includes('auth') ||
-    lowerError.includes('535') ||
-    lowerError.includes('534') ||
-    lowerError.includes('login') ||
-    lowerError.includes('denied')
-  ) {
-    return `${error}. Note: Microsoft requires OAuth2 authentication for Outlook.com/Hotmail accounts. Please use the "Connect with Microsoft" button instead of app passwords.`;
-  }
-
-  return error;
 }
 
 export default withAuth(handler);
