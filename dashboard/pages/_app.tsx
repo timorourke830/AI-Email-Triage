@@ -5,7 +5,7 @@ import { getSupabaseBrowserClient } from '@/lib/supabase';
 import { getSettings } from '@/lib/api';
 
 // Pages that don't require authentication
-const AUTH_ROUTES = ['/auth/signin', '/auth/signup'];
+const AUTH_ROUTES = ['/auth/signin', '/auth/signup', '/auth/forgot-password', '/auth/reset-password'];
 
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter();
