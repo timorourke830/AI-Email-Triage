@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import type { AppProps } from 'next/app';
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
 import { getSupabaseBrowserClient } from '@/lib/supabase';
 import { getSettings } from '@/lib/api';
 
@@ -62,7 +63,7 @@ export default function App({ Component, pageProps }: AppProps) {
     checkAuth();
 
     // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
       if (event === 'SIGNED_OUT') {
         setIsAuthenticated(false);
         router.replace('/auth/signin');
