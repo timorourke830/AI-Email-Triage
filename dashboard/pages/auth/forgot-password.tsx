@@ -17,12 +17,8 @@ export default function ForgotPasswordPage() {
     try {
       const supabase = getSupabaseBrowserClient();
 
-      // The redirectTo URL must be whitelisted in Supabase Dashboard
-      // Authentication > URL Configuration > Redirect URLs
-      const redirectTo = `${window.location.origin}/auth/reset-password`;
-
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo,
+        redirectTo: 'https://ai-email-triage-dqh9.vercel.app/auth/reset-password',
       });
 
       if (resetError) {

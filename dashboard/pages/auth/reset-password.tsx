@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
@@ -13,119 +13,68 @@ export default function ResetPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pageState, setPageState] = useState<PageState>('loading');
-  const [debugInfo, setDebugInfo] = useState<string>('');
-
-  const showReady = useCallback(() => {
-    setPageState('ready');
-  }, []);
 
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
     let mounted = true;
-    let timeoutId: NodeJS.Timeout | null = null;
 
-    // Debug: Log the current URL hash
-    const hash = window.location.hash;
-    console.log('[Reset Password] URL hash:', hash);
-    console.log('[Reset Password] Full URL:', window.location.href);
-
-    // Check if URL contains recovery tokens
-    const hashParams = new URLSearchParams(hash.substring(1));
-    const accessToken = hashParams.get('access_token');
-    const tokenType = hashParams.get('type');
-    const hasRecoveryHash = hash.includes('type=recovery') || tokenType === 'recovery';
-
-    console.log('[Reset Password] Has recovery hash:', hasRecoveryHash);
-    console.log('[Reset Password] Token type:', tokenType);
-    console.log('[Reset Password] Access token exists:', !!accessToken);
-
-    setDebugInfo(`Hash: ${hash ? 'present' : 'none'}, Type: ${tokenType || 'none'}, Token: ${accessToken ? 'yes' : 'no'}`);
-
-    // Set up auth state change listener FIRST
+    // Listen for auth state changes - PASSWORD_RECOVERY event indicates valid reset token
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('[Reset Password] Auth event:', event, 'Session:', !!session);
-
       if (!mounted) return;
 
       if (event === 'PASSWORD_RECOVERY') {
-        console.log('[Reset Password] PASSWORD_RECOVERY event received');
-        showReady();
-        if (timeoutId) clearTimeout(timeoutId);
+        // Supabase has processed the recovery token from the URL hash
+        setPageState('ready');
       } else if (event === 'SIGNED_IN' && session) {
-        // SIGNED_IN can also indicate successful token exchange
-        console.log('[Reset Password] SIGNED_IN event received');
-        showReady();
-        if (timeoutId) clearTimeout(timeoutId);
-      } else if (event === 'TOKEN_REFRESHED' && session) {
-        console.log('[Reset Password] TOKEN_REFRESHED event received');
-        showReady();
-        if (timeoutId) clearTimeout(timeoutId);
+        // Token was exchanged for a session - also valid for password reset
+        setPageState('ready');
       }
     });
 
-    // Check for existing session (event may have already fired before we mounted)
-    const checkSession = async () => {
-      console.log('[Reset Password] Checking for existing session...');
+    // Check for existing session (in case the auth event already fired before mount)
+    const checkExistingSession = async () => {
+      // First check if URL hash contains recovery tokens
+      const hash = window.location.hash;
+      const hasRecoveryToken = hash.includes('type=recovery') && hash.includes('access_token=');
 
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
-      console.log('[Reset Password] Session check result:', {
-        hasSession: !!session,
-        error: sessionError?.message,
-        userEmail: session?.user?.email
-      });
-
-      if (!mounted) return;
-
-      if (session) {
-        // Session exists - user can reset password
-        console.log('[Reset Password] Session found, showing form');
-        showReady();
-        if (timeoutId) clearTimeout(timeoutId);
+      if (!hasRecoveryToken) {
+        // No recovery token in URL - check if user already has a valid session
+        const { data: { session } } = await supabase.auth.getSession();
+        if (mounted) {
+          if (session) {
+            // User has a session (maybe from a previous recovery event)
+            setPageState('ready');
+          } else {
+            // No token and no session - invalid link
+            setPageState('invalid');
+          }
+        }
         return;
       }
 
-      // If there's a recovery hash but no session yet, Supabase needs to process it
-      // This happens when the hash is present but not yet exchanged for a session
-      if (hasRecoveryHash && accessToken) {
-        console.log('[Reset Password] Recovery hash found, waiting for Supabase to process...');
+      // There's a recovery token in the hash - Supabase will auto-process it
+      // Wait a bit for the onAuthStateChange event to fire
+      setTimeout(async () => {
+        if (!mounted) return;
 
-        // Give Supabase more time to process the hash
-        // The onAuthStateChange listener should catch the event
-        timeoutId = setTimeout(() => {
-          if (!mounted) return;
-
-          // Check session one more time before giving up
-          supabase.auth.getSession().then(({ data: { session: finalSession } }) => {
-            if (!mounted) return;
-
-            if (finalSession) {
-              console.log('[Reset Password] Session found on final check');
-              showReady();
-            } else {
-              console.log('[Reset Password] No session after timeout, showing invalid');
-              setPageState('invalid');
-            }
-          });
-        }, 5000); // Give it 5 seconds for hash processing
-
-        return;
-      }
-
-      // No hash and no session - definitely invalid
-      console.log('[Reset Password] No recovery hash and no session');
-      setPageState('invalid');
+        // Check if we got a session from the token
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          setPageState('ready');
+        } else {
+          // Token might be expired or invalid
+          setPageState('invalid');
+        }
+      }, 1000);
     };
 
-    // Small delay to ensure auth listener is fully set up
-    setTimeout(checkSession, 100);
+    checkExistingSession();
 
     return () => {
       mounted = false;
       subscription.unsubscribe();
-      if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [showReady]);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -138,8 +87,8 @@ export default function ResetPasswordPage() {
       return;
     }
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters');
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters');
       setLoading(false);
       return;
     }
@@ -157,7 +106,10 @@ export default function ResetPasswordPage() {
         return;
       }
 
+      // Password updated successfully
       setPageState('success');
+
+      // Sign out and redirect to signin
       await supabase.auth.signOut();
 
       setTimeout(() => {
@@ -181,9 +133,6 @@ export default function ResetPasswordPage() {
             <div style={styles.loading}>
               <div style={styles.spinner}></div>
               <p>Verifying reset link...</p>
-              {process.env.NODE_ENV === 'development' && (
-                <p style={{ fontSize: '12px', marginTop: '10px', color: '#999' }}>{debugInfo}</p>
-              )}
             </div>
           </div>
         </div>
@@ -234,13 +183,10 @@ export default function ResetPasswordPage() {
               <p style={styles.subtitle}>
                 This password reset link is invalid or has expired.
               </p>
-              {process.env.NODE_ENV === 'development' && (
-                <p style={{ fontSize: '12px', marginTop: '10px', color: '#999' }}>{debugInfo}</p>
-              )}
             </div>
 
             <div style={styles.footer}>
-              <Link href="/auth/forgot-password" style={styles.button}>
+              <Link href="/auth/forgot-password" style={styles.buttonLink}>
                 Request New Reset Link
               </Link>
               <p style={styles.footerText}>
@@ -280,10 +226,10 @@ export default function ResetPasswordPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 style={styles.input}
-                placeholder="Enter new password"
+                placeholder="At least 8 characters"
                 required
                 autoComplete="new-password"
-                minLength={6}
+                minLength={8}
                 autoFocus
               />
             </div>
@@ -301,7 +247,7 @@ export default function ResetPasswordPage() {
                 placeholder="Confirm new password"
                 required
                 autoComplete="new-password"
-                minLength={6}
+                minLength={8}
               />
             </div>
 
@@ -309,7 +255,7 @@ export default function ResetPasswordPage() {
 
             <button
               type="submit"
-              style={styles.submitButton}
+              style={styles.button}
               disabled={loading}
             >
               {loading ? 'Updating Password...' : 'Reset Password'}
@@ -409,7 +355,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '8px',
     fontSize: '14px',
   },
-  submitButton: {
+  button: {
     padding: '14px 24px',
     fontSize: '16px',
     fontWeight: 500,
@@ -420,7 +366,7 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     marginTop: '8px',
   },
-  button: {
+  buttonLink: {
     display: 'block',
     padding: '14px 24px',
     fontSize: '16px',
