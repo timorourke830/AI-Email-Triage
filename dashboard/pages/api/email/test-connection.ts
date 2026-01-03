@@ -86,7 +86,7 @@ async function testSmtpConnection(
       connectionTimeout: 10000,
     });
 
-    transporter.verify((err) => {
+    transporter.verify((err: Error | null) => {
       if (err) {
         resolve({ success: false, error: err.message });
       } else {

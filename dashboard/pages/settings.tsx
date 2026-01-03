@@ -31,7 +31,7 @@ export default function SettingsPage() {
           setLoading(false);
         }
       })
-      .catch((err) => {
+      .catch((err: Error) => {
         setMessage({ type: 'error', text: err.message });
         setLoading(false);
       });
