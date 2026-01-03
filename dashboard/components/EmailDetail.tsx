@@ -43,15 +43,29 @@ export default function EmailDetail({
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [hasSavedEdits, setHasSavedEdits] = useState(false);
 
   const handleApprove = async () => {
     setLoading(true);
     try {
-      const edited = isEditing && editedReply !== email.draft_reply ? editedReply : undefined;
+      // Pass edited reply if user has saved edits or is currently editing with changes
+      const hasChanges = editedReply !== email.draft_reply;
+      const edited = (hasSavedEdits || isEditing) && hasChanges ? editedReply : undefined;
       await onApprove(edited);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSaveEdits = () => {
+    setHasSavedEdits(true);
+    setIsEditing(false);
+  };
+
+  const handleCancelEdits = () => {
+    setEditedReply(email.draft_reply || '');
+    setIsEditing(false);
+    // Don't reset hasSavedEdits if they previously saved
   };
 
   const handleReject = async () => {
@@ -162,12 +176,15 @@ export default function EmailDetail({
         <div style={styles.section}>
           <h2 style={styles.sectionTitle}>
             Draft Reply
+            {hasSavedEdits && !isEditing && (
+              <span style={styles.editedBadge}>Edited</span>
+            )}
             {canApprove && !isEditing && (
               <button
                 style={styles.editButton}
                 onClick={() => setIsEditing(true)}
               >
-                Edit
+                {hasSavedEdits ? 'Edit Again' : 'Edit'}
               </button>
             )}
           </h2>
@@ -181,18 +198,23 @@ export default function EmailDetail({
               />
               <div style={styles.editActions}>
                 <button
+                  style={styles.saveButton}
+                  onClick={handleSaveEdits}
+                >
+                  Save
+                </button>
+                <button
                   style={styles.cancelButton}
-                  onClick={() => {
-                    setIsEditing(false);
-                    setEditedReply(email.draft_reply || '');
-                  }}
+                  onClick={handleCancelEdits}
                 >
                   Cancel
                 </button>
               </div>
             </div>
           ) : (
-            <div style={styles.emailBody}>{email.draft_reply}</div>
+            <div style={styles.emailBody}>
+              {hasSavedEdits ? editedReply : email.draft_reply}
+            </div>
           )}
         </div>
       )}
@@ -232,7 +254,7 @@ export default function EmailDetail({
             onClick={handleApprove}
             disabled={loading}
           >
-            {loading ? 'Processing...' : isEditing ? 'Approve with Edits' : 'Approve & Send'}
+            {loading ? 'Sending...' : hasSavedEdits ? 'Send Edited Reply' : 'Approve & Send'}
           </button>
         </div>
       )}
@@ -365,14 +387,34 @@ const styles: Record<string, React.CSSProperties> = {
   },
   editActions: {
     marginTop: '8px',
+    display: 'flex',
+    gap: '8px',
+  },
+  saveButton: {
+    padding: '8px 16px',
+    fontSize: '13px',
+    backgroundColor: '#3b82f6',
+    color: 'white',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontWeight: 500,
   },
   cancelButton: {
-    padding: '6px 12px',
+    padding: '8px 16px',
     fontSize: '13px',
     backgroundColor: '#e5e7eb',
     border: 'none',
     borderRadius: '4px',
     cursor: 'pointer',
+  },
+  editedBadge: {
+    fontSize: '11px',
+    fontWeight: 500,
+    color: '#3b82f6',
+    backgroundColor: '#dbeafe',
+    padding: '2px 8px',
+    borderRadius: '4px',
   },
   actions: {
     display: 'flex',

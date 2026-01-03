@@ -20,6 +20,26 @@ interface ProcessResult {
   errors: number;
 }
 
+interface DashboardStats {
+  total: number;
+  byStatus: {
+    pending: number;
+    processing: number;
+    awaiting_approval: number;
+    sent: number;
+    rejected: number;
+  };
+  byClassification: {
+    inquiry: number;
+    complaint: number;
+    support: number;
+    billing: number;
+    spam: number;
+    other: number;
+    unclassified: number;
+  };
+}
+
 const STATUS_OPTIONS: Array<{ value: EmailStatus | ''; label: string }> = [
   { value: '', label: 'All Statuses' },
   { value: 'pending', label: 'Pending' },
@@ -40,6 +60,21 @@ export default function Home() {
   const [statusFilter, setStatusFilter] = useState<EmailStatus | ''>('');
   const [page, setPage] = useState(1);
   const [connectedEmail, setConnectedEmail] = useState<string | null>(null);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+
+  const loadStats = useCallback(async () => {
+    try {
+      const res = await fetch('/api/dashboard/stats');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.stats) {
+          setStats(data.stats);
+        }
+      }
+    } catch {
+      // Stats are non-critical, fail silently
+    }
+  }, []);
 
   const handleSignOut = async () => {
     const supabase = getSupabaseBrowserClient();
@@ -107,8 +142,8 @@ export default function Home() {
 
       setRefreshStatus(`${fetchMsg}${processMsg}`);
 
-      // Reload email list
-      await loadEmails();
+      // Reload email list and stats
+      await Promise.all([loadEmails(), loadStats()]);
 
       // Clear status after a delay
       setTimeout(() => setRefreshStatus(null), 3000);
@@ -122,7 +157,8 @@ export default function Home() {
 
   useEffect(() => {
     loadEmails();
-  }, [loadEmails]);
+    loadStats();
+  }, [loadEmails, loadStats]);
 
   // Fetch connected email address from settings
   useEffect(() => {
@@ -175,6 +211,70 @@ export default function Home() {
           {connectedEmail && (
             <div style={styles.connectedEmail}>
               Triaging: <strong>{connectedEmail}</strong>
+            </div>
+          )}
+
+          {/* Dashboard Overview */}
+          {stats && (
+            <div style={styles.dashboardOverview}>
+              {/* Summary Cards */}
+              <div style={styles.statsCards}>
+                <div style={styles.statCard}>
+                  <div style={styles.statValue}>{stats.total}</div>
+                  <div style={styles.statLabel}>Total Emails</div>
+                </div>
+                <div
+                  style={{
+                    ...styles.statCard,
+                    ...styles.statCardClickable,
+                    borderColor: statusFilter === 'pending' ? '#3b82f6' : '#e5e7eb',
+                  }}
+                  onClick={() => {
+                    setStatusFilter('pending');
+                    setPage(1);
+                  }}
+                >
+                  <div style={{ ...styles.statValue, color: '#6b7280' }}>{stats.byStatus.pending}</div>
+                  <div style={styles.statLabel}>Pending</div>
+                  <div style={styles.statHint}>Needs AI processing</div>
+                </div>
+                <div
+                  style={{
+                    ...styles.statCard,
+                    ...styles.statCardClickable,
+                    borderColor: statusFilter === 'awaiting_approval' ? '#3b82f6' : '#e5e7eb',
+                  }}
+                  onClick={() => {
+                    setStatusFilter('awaiting_approval');
+                    setPage(1);
+                  }}
+                >
+                  <div style={{ ...styles.statValue, color: '#f59e0b' }}>{stats.byStatus.awaiting_approval}</div>
+                  <div style={styles.statLabel}>Awaiting Approval</div>
+                  <div style={styles.statHint}>Needs your review</div>
+                </div>
+                <div style={styles.statCard}>
+                  <div style={{ ...styles.statValue, color: '#10b981' }}>{stats.byStatus.sent}</div>
+                  <div style={styles.statLabel}>Sent</div>
+                </div>
+              </div>
+
+              {/* Classification Breakdown */}
+              <div style={styles.classificationSection}>
+                <h3 style={styles.classificationTitle}>Classification Breakdown</h3>
+                <div style={styles.classificationGrid}>
+                  {Object.entries(stats.byClassification)
+                    .filter(([key]) => key !== 'unclassified')
+                    .map(([category, count]) => (
+                      <div key={category} style={styles.classificationItem}>
+                        <span style={styles.classificationName}>
+                          {category.charAt(0).toUpperCase() + category.slice(1)}
+                        </span>
+                        <span style={styles.classificationCount}>{count}</span>
+                      </div>
+                    ))}
+                </div>
+              </div>
             </div>
           )}
 
@@ -368,5 +468,76 @@ const styles: Record<string, React.CSSProperties> = {
   pageInfo: {
     fontSize: '14px',
     color: '#6b7280',
+  },
+  dashboardOverview: {
+    marginBottom: '24px',
+  },
+  statsCards: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(4, 1fr)',
+    gap: '16px',
+    marginBottom: '20px',
+  },
+  statCard: {
+    backgroundColor: 'white',
+    borderRadius: '8px',
+    padding: '20px',
+    border: '1px solid #e5e7eb',
+    textAlign: 'center' as const,
+  },
+  statCardClickable: {
+    cursor: 'pointer',
+    transition: 'border-color 0.2s, box-shadow 0.2s',
+  },
+  statValue: {
+    fontSize: '32px',
+    fontWeight: 700,
+    color: '#111827',
+    marginBottom: '4px',
+  },
+  statLabel: {
+    fontSize: '14px',
+    fontWeight: 500,
+    color: '#374151',
+  },
+  statHint: {
+    fontSize: '12px',
+    color: '#9ca3af',
+    marginTop: '4px',
+  },
+  classificationSection: {
+    backgroundColor: 'white',
+    borderRadius: '8px',
+    padding: '20px',
+    border: '1px solid #e5e7eb',
+  },
+  classificationTitle: {
+    fontSize: '14px',
+    fontWeight: 600,
+    color: '#374151',
+    margin: '0 0 12px 0',
+  },
+  classificationGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(6, 1fr)',
+    gap: '12px',
+  },
+  classificationItem: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+    padding: '12px',
+    backgroundColor: '#f9fafb',
+    borderRadius: '6px',
+  },
+  classificationName: {
+    fontSize: '12px',
+    color: '#6b7280',
+    marginBottom: '4px',
+  },
+  classificationCount: {
+    fontSize: '20px',
+    fontWeight: 600,
+    color: '#111827',
   },
 };
