@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
-import { getEmail, approveEmail, rejectEmail } from '@/lib/api';
+import { getEmail, approveEmail, rejectEmail, processEmails } from '@/lib/api';
 import EmailDetail from '@/components/EmailDetail';
 import type { Email, Attachment, AuditLog } from '@/lib/types';
 
@@ -67,6 +67,21 @@ export default function EmailPage() {
     }
   };
 
+  const handleProcess = async () => {
+    if (!id || typeof id !== 'string') return;
+
+    try {
+      setSuccessMessage('Processing email with AI...');
+      await processEmails(1); // Process just this one
+      await fetchEmail(); // Refresh to see results
+      setSuccessMessage('Email processed successfully!');
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to process email');
+      setSuccessMessage(null);
+    }
+  };
+
   if (loading) {
     return (
       <div style={styles.container}>
@@ -117,6 +132,7 @@ export default function EmailPage() {
             auditLogs={auditLogs}
             onApprove={handleApprove}
             onReject={handleReject}
+            onProcess={handleProcess}
           />
         </main>
       </div>

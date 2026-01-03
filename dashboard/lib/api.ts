@@ -95,3 +95,22 @@ export async function completeSetup(): Promise<{ success: boolean }> {
 export async function triggerIngest(): Promise<IngestResponse> {
   return apiFetch<IngestResponse>('/api/ingest', { method: 'POST' });
 }
+
+export interface ProcessResponse {
+  success: boolean;
+  processed: number;
+  errors: number;
+  details?: Array<{
+    email_id: string;
+    classification: string | null;
+    status: string;
+    error?: string;
+  }>;
+}
+
+export async function processEmails(limit?: number): Promise<ProcessResponse> {
+  return apiFetch<ProcessResponse>('/api/emails/process', {
+    method: 'POST',
+    body: { limit: limit || 10 },
+  });
+}

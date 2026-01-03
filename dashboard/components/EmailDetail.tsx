@@ -7,6 +7,7 @@ interface EmailDetailProps {
   auditLogs: AuditLog[];
   onApprove: (editedReply?: string) => Promise<void>;
   onReject: (reason?: string) => Promise<void>;
+  onProcess?: () => Promise<void>;
 }
 
 const statusColors: Record<EmailStatus, string> = {
@@ -35,11 +36,13 @@ export default function EmailDetail({
   auditLogs,
   onApprove,
   onReject,
+  onProcess,
 }: EmailDetailProps) {
   const [editedReply, setEditedReply] = useState(email.draft_reply || '');
   const [rejectReason, setRejectReason] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [processing, setProcessing] = useState(false);
 
   const handleApprove = async () => {
     setLoading(true);
@@ -60,7 +63,18 @@ export default function EmailDetail({
     }
   };
 
+  const handleProcess = async () => {
+    if (!onProcess) return;
+    setProcessing(true);
+    try {
+      await onProcess();
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const canApprove = email.status === 'awaiting_approval';
+  const canProcess = email.status === 'pending' && onProcess;
 
   return (
     <div style={styles.container}>
@@ -99,6 +113,25 @@ export default function EmailDetail({
         <h2 style={styles.sectionTitle}>Original Email</h2>
         <div style={styles.emailBody}>{email.body}</div>
       </div>
+
+      {/* Process Button for Pending Emails */}
+      {canProcess && (
+        <div style={styles.processSection}>
+          <div style={styles.processInfo}>
+            <h3 style={styles.processTitle}>This email hasn't been processed yet</h3>
+            <p style={styles.processDesc}>
+              Click the button below to classify this email and generate a draft reply using AI.
+            </p>
+          </div>
+          <button
+            style={styles.processButton}
+            onClick={handleProcess}
+            disabled={processing}
+          >
+            {processing ? 'Processing...' : 'Process with AI'}
+          </button>
+        </div>
+      )}
 
       {/* Attachments */}
       {attachments.length > 0 && (
@@ -406,5 +439,40 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '12px',
     color: '#6b7280',
     marginTop: '4px',
+  },
+  processSection: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '24px',
+    backgroundColor: '#fef3c7',
+    borderRadius: '8px',
+    marginBottom: '24px',
+    border: '1px solid #fcd34d',
+  },
+  processInfo: {
+    flex: 1,
+  },
+  processTitle: {
+    fontSize: '16px',
+    fontWeight: 600,
+    color: '#92400e',
+    margin: '0 0 4px 0',
+  },
+  processDesc: {
+    fontSize: '14px',
+    color: '#a16207',
+    margin: 0,
+  },
+  processButton: {
+    padding: '12px 24px',
+    fontSize: '14px',
+    fontWeight: 500,
+    backgroundColor: '#3b82f6',
+    color: 'white',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    marginLeft: '16px',
   },
 };
