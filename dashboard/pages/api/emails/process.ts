@@ -58,26 +58,35 @@ async function handler(
   }
 
   const { clientId, userId, userEmail } = req;
-  const { limit = 10 } = req.body || {};
+  const { limit = 10, emailId } = req.body || {};
 
   console.log(`[PROCESS-API] ${timestamp} - Authentication verified:`, {
     userId,
     clientId,
     userEmail,
   });
-  console.log(`[PROCESS-API] ${timestamp} - Request parameters: limit=${limit}`);
+  console.log(`[PROCESS-API] ${timestamp} - Request parameters: limit=${limit}, emailId=${emailId || 'none'}`);
 
   const supabase = getSupabaseServiceClient();
 
-  // Get pending emails
-  console.log(`[PROCESS-API] ${timestamp} - Fetching pending emails for client ${clientId}...`);
-  const { data: emails, error: fetchError } = await supabase
+  // Get pending emails - either specific email or batch
+  let query = supabase
     .from('emails')
     .select('id, from_address, subject, body')
     .eq('client_id', clientId)
-    .eq('status', 'pending')
-    .order('created_at', { ascending: true })
-    .limit(Math.min(limit, 50)) as { data: EmailRow[] | null; error: unknown };
+    .eq('status', 'pending');
+
+  if (emailId) {
+    // Process specific email
+    console.log(`[PROCESS-API] ${timestamp} - Fetching specific email ${emailId} for client ${clientId}...`);
+    query = query.eq('id', emailId);
+  } else {
+    // Process batch of oldest pending emails
+    console.log(`[PROCESS-API] ${timestamp} - Fetching pending emails for client ${clientId}...`);
+    query = query.order('created_at', { ascending: true }).limit(Math.min(limit, 50));
+  }
+
+  const { data: emails, error: fetchError } = await query as { data: EmailRow[] | null; error: unknown };
 
   if (fetchError) {
     console.error(`[PROCESS-API] ${timestamp} - ERROR: Failed to fetch pending emails:`, fetchError);

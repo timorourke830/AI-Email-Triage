@@ -108,9 +108,12 @@ export interface ProcessResponse {
   }>;
 }
 
-export async function processEmails(limit?: number): Promise<ProcessResponse> {
+export async function processEmails(options?: { limit?: number; emailId?: string }): Promise<ProcessResponse> {
   return apiFetch<ProcessResponse>('/api/emails/process', {
     method: 'POST',
-    body: { limit: limit || 10 },
+    body: {
+      limit: options?.limit || 10,
+      emailId: options?.emailId,
+    },
   });
 }

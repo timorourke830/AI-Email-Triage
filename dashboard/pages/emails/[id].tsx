@@ -73,7 +73,7 @@ export default function EmailPage() {
     try {
       setSuccessMessage('Processing email with AI...');
       setError(null);
-      const result = await processEmails(1);
+      const result = await processEmails({ emailId: id });
       console.log('[handleProcess] Result:', result);
 
       if (result.processed === 0) {
