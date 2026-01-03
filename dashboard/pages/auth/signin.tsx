@@ -88,9 +88,6 @@ export default function SignInPage() {
                 required
                 autoComplete="current-password"
               />
-              <Link href="/auth/forgot-password" style={styles.forgotLink}>
-                Forgot password?
-              </Link>
             </div>
 
             {successMessage && <div style={styles.success}>{successMessage}</div>}
@@ -104,6 +101,12 @@ export default function SignInPage() {
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
+
+          <div style={styles.forgotPasswordContainer}>
+            <Link href="/auth/forgot-password" style={styles.forgotLink}>
+              Forgot password?
+            </Link>
+          </div>
 
           <div style={styles.footer}>
             <p style={styles.footerText}>
@@ -213,11 +216,13 @@ const styles: Record<string, React.CSSProperties> = {
     textDecoration: 'none',
     fontWeight: 500,
   },
+  forgotPasswordContainer: {
+    textAlign: 'center' as const,
+    marginTop: '16px',
+  },
   forgotLink: {
-    fontSize: '13px',
+    fontSize: '14px',
     color: '#6b7280',
     textDecoration: 'none',
-    marginTop: '4px',
-    alignSelf: 'flex-end',
   },
 };
