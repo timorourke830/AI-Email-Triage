@@ -20,7 +20,10 @@
       "Bash(git push:*)",
       "Bash(pnpm build:*)",
       "Bash(git fetch:*)",
-      "Bash(git pull:*)"
+      "Bash(git pull:*)",
+      "WebSearch",
+      "WebFetch(domain:supabase.com)",
+      "WebFetch(domain:github.com)"
     ]
   }
 }

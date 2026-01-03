@@ -2,11 +2,19 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { createBrowserClient, createServerClient } from '@supabase/ssr';
 import type { NextApiRequest, NextApiResponse } from 'next';
 
+// Module-level singleton for browser client
+let browserClient: ReturnType<typeof createBrowserClient> | null = null;
+
 /**
  * Create a Supabase client for browser-side usage
  * Uses the anon key and respects RLS policies
+ * Returns a singleton instance to ensure consistent session state
  */
 export function getSupabaseBrowserClient() {
+  if (browserClient) {
+    return browserClient;
+  }
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -16,7 +24,8 @@ export function getSupabaseBrowserClient() {
     );
   }
 
-  return createBrowserClient(url, anonKey);
+  browserClient = createBrowserClient(url, anonKey);
+  return browserClient;
 }
 
 /**

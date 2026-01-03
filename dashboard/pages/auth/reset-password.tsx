@@ -6,6 +6,25 @@ import { getSupabaseBrowserClient } from '@/lib/supabase';
 
 type PageState = 'loading' | 'ready' | 'invalid' | 'success';
 
+/**
+ * Check for valid session with retry logic.
+ * The session may take a moment to be fully available after navigation.
+ */
+async function checkSessionWithRetry(maxAttempts = 5, delayMs = 300): Promise<boolean> {
+  const supabase = getSupabaseBrowserClient();
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      return true;
+    }
+    if (attempt < maxAttempts - 1) {
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+  return false;
+}
+
 export default function ResetPasswordPage() {
   const router = useRouter();
   const [password, setPassword] = useState('');
@@ -18,57 +37,32 @@ export default function ResetPasswordPage() {
     const supabase = getSupabaseBrowserClient();
     let mounted = true;
 
-    // Listen for auth state changes - PASSWORD_RECOVERY event indicates valid reset token
+    // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return;
 
-      if (event === 'PASSWORD_RECOVERY') {
-        // Supabase has processed the recovery token from the URL hash
-        setPageState('ready');
-      } else if (event === 'SIGNED_IN' && session) {
-        // Token was exchanged for a session - also valid for password reset
+      // PASSWORD_RECOVERY or SIGNED_IN with session means we can reset password
+      if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session)) {
         setPageState('ready');
       }
     });
 
-    // Check for existing session (in case the auth event already fired before mount)
-    const checkExistingSession = async () => {
-      // First check if URL hash contains recovery tokens
-      const hash = window.location.hash;
-      const hasRecoveryToken = hash.includes('type=recovery') && hash.includes('access_token=');
+    // Check for existing session
+    // User arrives here from /auth/confirm after successful token exchange
+    const checkSession = async () => {
+      const hasSession = await checkSessionWithRetry();
 
-      if (!hasRecoveryToken) {
-        // No recovery token in URL - check if user already has a valid session
-        const { data: { session } } = await supabase.auth.getSession();
-        if (mounted) {
-          if (session) {
-            // User has a session (maybe from a previous recovery event)
-            setPageState('ready');
-          } else {
-            // No token and no session - invalid link
-            setPageState('invalid');
-          }
-        }
-        return;
-      }
-
-      // There's a recovery token in the hash - Supabase will auto-process it
-      // Wait a bit for the onAuthStateChange event to fire
-      setTimeout(async () => {
-        if (!mounted) return;
-
-        // Check if we got a session from the token
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
+      if (mounted) {
+        if (hasSession) {
           setPageState('ready');
         } else {
-          // Token might be expired or invalid
+          // No session - user likely navigated here directly without valid token
           setPageState('invalid');
         }
-      }, 1000);
+      }
     };
 
-    checkExistingSession();
+    checkSession();
 
     return () => {
       mounted = false;

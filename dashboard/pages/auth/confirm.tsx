@@ -6,6 +6,23 @@ import { getSupabaseBrowserClient } from '@/lib/supabase';
 
 type ConfirmState = 'loading' | 'error';
 
+/**
+ * Wait for session to be established after token verification.
+ * This ensures cookies are fully written before navigation.
+ */
+async function waitForSession(maxAttempts = 10, delayMs = 200): Promise<boolean> {
+  const supabase = getSupabaseBrowserClient();
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      return true;
+    }
+    await new Promise(resolve => setTimeout(resolve, delayMs));
+  }
+  return false;
+}
+
 export default function ConfirmPage() {
   const router = useRouter();
   const [state, setState] = useState<ConfirmState>('loading');
@@ -35,7 +52,7 @@ export default function ConfirmPage() {
 
       try {
         // Exchange the token for a session using PKCE flow
-        const { error } = await supabase.auth.verifyOtp({
+        const { data, error } = await supabase.auth.verifyOtp({
           token_hash,
           type: type as 'recovery' | 'signup' | 'email',
         });
@@ -46,7 +63,19 @@ export default function ConfirmPage() {
           return;
         }
 
-        // Token verified successfully - redirect based on type
+        // verifyOtp should return session data for recovery type
+        // But we also poll to ensure cookies are synced
+        if (!data.session) {
+          // Wait for session to appear in cookies
+          const sessionConfirmed = await waitForSession();
+          if (!sessionConfirmed) {
+            setState('error');
+            setErrorMessage('Session could not be established. Please try again.');
+            return;
+          }
+        }
+
+        // Session confirmed - redirect based on type
         if (type === 'recovery') {
           // Password recovery - redirect to reset password page
           router.replace('/auth/reset-password');
