@@ -74,7 +74,16 @@ export default function EmailDetail({
   };
 
   const canApprove = email.status === 'awaiting_approval';
-  const canProcess = email.status === 'pending' && onProcess;
+  const canProcess = email.status === 'pending' && !!onProcess;
+
+  // Debug logging
+  console.log('[EmailDetail] Debug:', {
+    status: email.status,
+    statusType: typeof email.status,
+    onProcessDefined: !!onProcess,
+    canProcess,
+    statusIsPending: email.status === 'pending',
+  });
 
   return (
     <div style={styles.container}>
@@ -112,6 +121,11 @@ export default function EmailDetail({
       <div style={styles.section}>
         <h2 style={styles.sectionTitle}>Original Email</h2>
         <div style={styles.emailBody}>{email.body}</div>
+      </div>
+
+      {/* Debug Info - Remove after fixing */}
+      <div style={{ padding: '12px', backgroundColor: '#f0f0f0', borderRadius: '4px', marginBottom: '16px', fontSize: '12px', fontFamily: 'monospace' }}>
+        <strong>Debug:</strong> status="{email.status}" | onProcess={onProcess ? 'defined' : 'undefined'} | canProcess={String(canProcess)}
       </div>
 
       {/* Process Button for Pending Emails */}
