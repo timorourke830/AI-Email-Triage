@@ -4,29 +4,18 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { getSupabaseBrowserClient } from '@/lib/supabase';
 
-type ConfirmState = 'loading' | 'error';
-
-/**
- * Wait for session to be established after token verification.
- * This ensures cookies are fully written before navigation.
- */
-async function waitForSession(maxAttempts = 10, delayMs = 200): Promise<boolean> {
-  const supabase = getSupabaseBrowserClient();
-
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session) {
-      return true;
-    }
-    await new Promise(resolve => setTimeout(resolve, delayMs));
-  }
-  return false;
-}
+type ConfirmState = 'loading' | 'password_reset' | 'success' | 'error';
 
 export default function ConfirmPage() {
   const router = useRouter();
   const [state, setState] = useState<ConfirmState>('loading');
   const [errorMessage, setErrorMessage] = useState<string>('');
+
+  // Password reset form state
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [updating, setUpdating] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
     const handleTokenExchange = async () => {
@@ -63,22 +52,11 @@ export default function ConfirmPage() {
           return;
         }
 
-        // verifyOtp should return session data for recovery type
-        // But we also poll to ensure cookies are synced
-        if (!data.session) {
-          // Wait for session to appear in cookies
-          const sessionConfirmed = await waitForSession();
-          if (!sessionConfirmed) {
-            setState('error');
-            setErrorMessage('Session could not be established. Please try again.');
-            return;
-          }
-        }
-
-        // Session confirmed - redirect based on type
+        // Handle based on type
         if (type === 'recovery') {
-          // Password recovery - redirect to reset password page
-          router.replace('/auth/reset-password');
+          // Password recovery - show password reset form directly
+          // This avoids session persistence issues between page navigations
+          setState('password_reset');
         } else if (type === 'signup' || type === 'email') {
           // Email confirmation - redirect to home or setup
           router.replace('/');
@@ -94,6 +72,52 @@ export default function ConfirmPage() {
 
     handleTokenExchange();
   }, [router.isReady, router.query, router]);
+
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError(null);
+    setUpdating(true);
+
+    // Validate passwords
+    if (password !== confirmPassword) {
+      setFormError('Passwords do not match');
+      setUpdating(false);
+      return;
+    }
+
+    if (password.length < 8) {
+      setFormError('Password must be at least 8 characters');
+      setUpdating(false);
+      return;
+    }
+
+    try {
+      const supabase = getSupabaseBrowserClient();
+
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: password,
+      });
+
+      if (updateError) {
+        setFormError(updateError.message);
+        setUpdating(false);
+        return;
+      }
+
+      // Password updated successfully - show success and sign out
+      setState('success');
+
+      // Sign out and redirect to signin
+      await supabase.auth.signOut();
+
+      setTimeout(() => {
+        router.push('/auth/signin?message=password_reset');
+      }, 2000);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'An error occurred');
+      setUpdating(false);
+    }
+  };
 
   // Loading state
   if (state === 'loading') {
@@ -115,6 +139,95 @@ export default function ConfirmPage() {
             to { transform: rotate(360deg); }
           }
         `}</style>
+      </>
+    );
+  }
+
+  // Success state (after password reset)
+  if (state === 'success') {
+    return (
+      <>
+        <Head>
+          <title>Password Reset - AI Email Triage</title>
+        </Head>
+        <div style={styles.container}>
+          <div style={styles.card}>
+            <div style={styles.header}>
+              <div style={styles.iconSuccess}>&#10003;</div>
+              <h1 style={styles.title}>Password Reset!</h1>
+              <p style={styles.subtitle}>
+                Your password has been successfully updated.
+                Redirecting to sign in...
+              </p>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // Password reset form state
+  if (state === 'password_reset') {
+    return (
+      <>
+        <Head>
+          <title>Reset Password - AI Email Triage</title>
+        </Head>
+        <div style={styles.container}>
+          <div style={styles.card}>
+            <div style={styles.header}>
+              <h1 style={styles.title}>Reset Password</h1>
+              <p style={styles.subtitle}>Enter your new password below</p>
+            </div>
+
+            <form onSubmit={handlePasswordSubmit} style={styles.form}>
+              <div style={styles.field}>
+                <label htmlFor="password" style={styles.label}>
+                  New Password
+                </label>
+                <input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  style={styles.input}
+                  placeholder="At least 8 characters"
+                  required
+                  autoComplete="new-password"
+                  minLength={8}
+                  autoFocus
+                />
+              </div>
+
+              <div style={styles.field}>
+                <label htmlFor="confirmPassword" style={styles.label}>
+                  Confirm New Password
+                </label>
+                <input
+                  id="confirmPassword"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  style={styles.input}
+                  placeholder="Confirm new password"
+                  required
+                  autoComplete="new-password"
+                  minLength={8}
+                />
+              </div>
+
+              {formError && <div style={styles.formError}>{formError}</div>}
+
+              <button
+                type="submit"
+                style={styles.button}
+                disabled={updating}
+              >
+                {updating ? 'Updating Password...' : 'Reset Password'}
+              </button>
+            </form>
+          </div>
+        </div>
       </>
     );
   }
@@ -186,6 +299,19 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 'bold',
     margin: '0 auto 16px auto',
   },
+  iconSuccess: {
+    width: '48px',
+    height: '48px',
+    borderRadius: '50%',
+    backgroundColor: '#dcfce7',
+    color: '#16a34a',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '24px',
+    fontWeight: 'bold',
+    margin: '0 auto 16px auto',
+  },
   title: {
     fontSize: '28px',
     fontWeight: 700,
@@ -210,6 +336,47 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '50%',
     margin: '0 auto 16px auto',
     animation: 'spin 1s linear infinite',
+  },
+  form: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '20px',
+  },
+  field: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '6px',
+  },
+  label: {
+    fontSize: '14px',
+    fontWeight: 500,
+    color: '#374151',
+  },
+  input: {
+    padding: '12px 16px',
+    fontSize: '15px',
+    border: '1px solid #d1d5db',
+    borderRadius: '8px',
+    outline: 'none',
+    transition: 'border-color 0.2s',
+  },
+  formError: {
+    padding: '12px 16px',
+    backgroundColor: '#fef2f2',
+    color: '#dc2626',
+    borderRadius: '8px',
+    fontSize: '14px',
+  },
+  button: {
+    padding: '14px 24px',
+    fontSize: '16px',
+    fontWeight: 500,
+    backgroundColor: '#3b82f6',
+    color: 'white',
+    border: 'none',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    marginTop: '8px',
   },
   footer: {
     textAlign: 'center' as const,
