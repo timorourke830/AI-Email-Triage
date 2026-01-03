@@ -141,10 +141,15 @@ async function handler(
 
     try {
       // Mark as processing
-      await supabase
+      const { error: markProcessingError } = await supabase
         .from('emails')
         .update({ status: 'processing' })
         .eq('id', email.id);
+
+      if (markProcessingError) {
+        console.error(`[PROCESS-API] ${emailTimestamp} - ERROR: Failed to mark email as processing:`, markProcessingError);
+        throw new Error(`Failed to update status: ${markProcessingError.message}`);
+      }
 
       // Classify the email
       console.log(`[PROCESS-API] ${emailTimestamp} - Classifying email ${email.id}...`);
@@ -277,7 +282,7 @@ async function handler(
       const newStatus = shouldAutoApprove ? 'sent' : 'awaiting_approval';
       console.log(`[PROCESS-API] ${emailTimestamp} - Updating email ${email.id} status to: ${newStatus}`);
 
-      await supabase
+      const { error: updateError } = await supabase
         .from('emails')
         .update({
           status: newStatus,
@@ -293,6 +298,13 @@ async function handler(
           sent_at: shouldAutoApprove ? new Date().toISOString() : null,
         })
         .eq('id', email.id);
+
+      if (updateError) {
+        console.error(`[PROCESS-API] ${emailTimestamp} - ERROR: Failed to update email ${email.id}:`, updateError);
+        throw new Error(`Failed to save processing results: ${updateError.message}`);
+      }
+
+      console.log(`[PROCESS-API] ${emailTimestamp} - Successfully updated email ${email.id} in database`);
 
       // Create audit log
       const auditAction = shouldAutoApprove ? 'auto_approved' : 'draft_created';

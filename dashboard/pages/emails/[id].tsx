@@ -72,11 +72,28 @@ export default function EmailPage() {
 
     try {
       setSuccessMessage('Processing email with AI...');
-      await processEmails(1); // Process just this one
+      setError(null);
+      const result = await processEmails(1);
+      console.log('[handleProcess] Result:', result);
+
+      if (result.processed === 0) {
+        setError(`No emails processed. Details: ${JSON.stringify(result)}`);
+        setSuccessMessage(null);
+        return;
+      }
+
+      if (result.errors > 0) {
+        const errorDetail = result.details?.find(d => d.error);
+        setError(`Processing error: ${errorDetail?.error || 'Unknown error'}`);
+        setSuccessMessage(null);
+        return;
+      }
+
       await fetchEmail(); // Refresh to see results
-      setSuccessMessage('Email processed successfully!');
+      setSuccessMessage(`Email processed: ${result.details?.[0]?.classification || 'success'}`);
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
+      console.error('[handleProcess] Error:', err);
       setError(err instanceof Error ? err.message : 'Failed to process email');
       setSuccessMessage(null);
     }
