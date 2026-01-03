@@ -68,10 +68,14 @@ export default function EmailPage() {
   };
 
   const handleProcess = async () => {
-    if (!id || typeof id !== 'string') return;
+    if (!id || typeof id !== 'string') {
+      setError(`Invalid email ID: ${id} (type: ${typeof id})`);
+      return;
+    }
 
     try {
-      setSuccessMessage('Processing email with AI...');
+      console.log('[handleProcess] Processing email with ID:', id);
+      setSuccessMessage(`Processing email ${id.substring(0, 8)}...`);
       setError(null);
       const result = await processEmails({ emailId: id });
       console.log('[handleProcess] Result:', result);

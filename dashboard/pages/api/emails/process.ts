@@ -65,9 +65,55 @@ async function handler(
     clientId,
     userEmail,
   });
-  console.log(`[PROCESS-API] ${timestamp} - Request parameters: limit=${limit}, emailId=${emailId || 'none'}`);
+  console.log(`[PROCESS-API] ${timestamp} - Request body:`, JSON.stringify(req.body));
+  console.log(`[PROCESS-API] ${timestamp} - Request parameters: limit=${limit}, emailId=${emailId || 'none'}, emailIdType=${typeof emailId}`);
 
   const supabase = getSupabaseServiceClient();
+
+  // If specific emailId provided, first check if the email exists and its current status
+  if (emailId) {
+    console.log(`[PROCESS-API] ${timestamp} - Checking email ${emailId} exists and status...`);
+    const { data: emailCheck, error: checkError } = await supabase
+      .from('emails')
+      .select('id, status, client_id')
+      .eq('id', emailId)
+      .single();
+
+    if (checkError || !emailCheck) {
+      console.error(`[PROCESS-API] ${timestamp} - ERROR: Email ${emailId} not found:`, checkError);
+      res.status(404).json({
+        success: false,
+        processed: 0,
+        errors: 1,
+        details: [{ email_id: emailId, classification: null, status: 'error', error: `Email not found: ${emailId}` }],
+      });
+      return;
+    }
+
+    console.log(`[PROCESS-API] ${timestamp} - Email ${emailId} found:`, emailCheck);
+
+    if (emailCheck.client_id !== clientId) {
+      console.error(`[PROCESS-API] ${timestamp} - ERROR: Email ${emailId} belongs to different client`);
+      res.status(403).json({
+        success: false,
+        processed: 0,
+        errors: 1,
+        details: [{ email_id: emailId, classification: null, status: 'error', error: 'Email belongs to different client' }],
+      });
+      return;
+    }
+
+    if (emailCheck.status !== 'pending') {
+      console.error(`[PROCESS-API] ${timestamp} - ERROR: Email ${emailId} status is '${emailCheck.status}', not 'pending'`);
+      res.status(400).json({
+        success: false,
+        processed: 0,
+        errors: 1,
+        details: [{ email_id: emailId, classification: null, status: 'error', error: `Email status is '${emailCheck.status}', expected 'pending'` }],
+      });
+      return;
+    }
+  }
 
   // Get pending emails - either specific email or batch
   let query = supabase
@@ -99,7 +145,7 @@ async function handler(
   }
 
   if (!emails || emails.length === 0) {
-    console.log(`[PROCESS-API] ${timestamp} - No pending emails found for client ${clientId}`);
+    console.log(`[PROCESS-API] ${timestamp} - No pending emails found for client ${clientId}, emailId filter: ${emailId || 'none'}`);
     res.status(200).json({
       success: true,
       processed: 0,
