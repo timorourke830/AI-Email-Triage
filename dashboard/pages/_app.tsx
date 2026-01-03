@@ -29,8 +29,9 @@ export default function App({ Component, pageProps }: AppProps) {
           return;
         }
 
-        // If authenticated, check if setup is completed (except for setup page)
-        if (router.pathname !== '/setup') {
+        // If authenticated, check if setup is completed (except for setup and reset-password pages)
+        // Skip setup check for reset-password - user needs to complete password reset first
+        if (router.pathname !== '/setup' && router.pathname !== '/auth/reset-password') {
           try {
             const { settings } = await getSettings();
             if (!settings?.setup_completed) {
