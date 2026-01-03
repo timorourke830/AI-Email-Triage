@@ -3,6 +3,7 @@ import type { Transporter } from 'nodemailer';
 import type SMTPTransport from 'nodemailer/lib/smtp-transport';
 import { getSupabaseServiceClient } from './supabase';
 import { decrypt } from './encryption';
+import * as MicrosoftGraph from './microsoft-graph';
 
 export interface SendEmailOptions {
   to: string;
@@ -131,15 +132,76 @@ export function parseReplyContent(finalReply: string): { subject: string; body: 
 }
 
 /**
- * Send an email via SMTP for a specific client
+ * Get email provider for a client
  */
-export async function sendEmail(options: SendEmailOptions, clientId?: string): Promise<SendEmailResult> {
-  if (!clientId) {
+async function getClientEmailProvider(clientId: string): Promise<'gmail' | 'outlook'> {
+  const supabase = getSupabaseServiceClient();
+  const { data, error } = await supabase
+    .from('client_settings')
+    .select('email_provider')
+    .eq('client_id', clientId)
+    .single();
+
+  if (error || !data) {
+    throw new Error(`Failed to get client email provider: ${error?.message || 'Not found'}`);
+  }
+
+  return data.email_provider || 'gmail';
+}
+
+/**
+ * Send an email via Microsoft Graph API for Outlook accounts
+ */
+async function sendViaOutlook(options: SendEmailOptions, clientId: string): Promise<SendEmailResult> {
+  const timestamp = new Date().toISOString();
+  console.log(`[SMTP] ${timestamp} - Sending email via Microsoft Graph API for client ${clientId}`);
+
+  try {
+    // Get valid access token (handles refresh automatically)
+    const accessToken = await MicrosoftGraph.getValidAccessToken(clientId);
+
+    // Ensure subject has Re: prefix for replies
+    let subject = options.subject;
+    if (options.originalSubject && !subject) {
+      subject = options.originalSubject.toLowerCase().startsWith('re:')
+        ? options.originalSubject
+        : `Re: ${options.originalSubject}`;
+    }
+
+    // Note: Microsoft Graph reply endpoint expects the Graph message ID, not the internet message ID
+    // For now, we'll send as a new message to ensure delivery works
+    // TODO: Store Graph message ID alongside external_id to enable proper threading
+    await MicrosoftGraph.sendEmail({
+      accessToken,
+      to: options.to,
+      subject: subject || 'No Subject',
+      body: options.body,
+      // Don't pass replyToMessageId since we have the internet message ID, not Graph ID
+    });
+
+    console.log(`[SMTP] ${timestamp} - Email sent successfully via Graph API for client ${clientId}`);
+
+    return {
+      success: true,
+      messageId: `graph-${Date.now()}`, // Graph API doesn't return message ID for sendMail
+    };
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : 'Unknown Graph API error';
+    console.error(`[SMTP] ${timestamp} - Failed to send email via Graph API for client ${clientId}:`, errorMessage);
+
     return {
       success: false,
-      error: 'Client ID is required for sending emails',
+      error: errorMessage,
     };
   }
+}
+
+/**
+ * Send an email via SMTP for Gmail accounts
+ */
+async function sendViaSmtp(options: SendEmailOptions, clientId: string): Promise<SendEmailResult> {
+  const timestamp = new Date().toISOString();
+  console.log(`[SMTP] ${timestamp} - Sending email via SMTP for client ${clientId}`);
 
   const { transporter, fromEmail } = await getClientTransporter(clientId);
 
@@ -169,7 +231,7 @@ export async function sendEmail(options: SendEmailOptions, clientId?: string): P
       headers,
     });
 
-    console.log(`Email sent successfully for client ${clientId}: ${info.messageId}`);
+    console.log(`[SMTP] ${timestamp} - Email sent successfully via SMTP for client ${clientId}: ${info.messageId}`);
 
     return {
       success: true,
@@ -177,10 +239,45 @@ export async function sendEmail(options: SendEmailOptions, clientId?: string): P
     };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'Unknown SMTP error';
-    console.error(`Failed to send email for client ${clientId}:`, errorMessage);
+    console.error(`[SMTP] ${timestamp} - Failed to send email via SMTP for client ${clientId}:`, errorMessage);
 
     // Clear cached transporter on error (might need reconfiguration)
     clientTransporters.delete(clientId);
+
+    return {
+      success: false,
+      error: errorMessage,
+    };
+  }
+}
+
+/**
+ * Send an email for a specific client
+ * Routes to appropriate provider (Microsoft Graph for Outlook, SMTP for Gmail)
+ */
+export async function sendEmail(options: SendEmailOptions, clientId?: string): Promise<SendEmailResult> {
+  const timestamp = new Date().toISOString();
+
+  if (!clientId) {
+    return {
+      success: false,
+      error: 'Client ID is required for sending emails',
+    };
+  }
+
+  try {
+    // Check the client's email provider
+    const provider = await getClientEmailProvider(clientId);
+    console.log(`[SMTP] ${timestamp} - Client ${clientId} uses provider: ${provider}`);
+
+    if (provider === 'outlook') {
+      return await sendViaOutlook(options, clientId);
+    } else {
+      return await sendViaSmtp(options, clientId);
+    }
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+    console.error(`[SMTP] ${timestamp} - Error sending email for client ${clientId}:`, errorMessage);
 
     return {
       success: false,
