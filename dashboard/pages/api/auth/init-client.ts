@@ -59,7 +59,6 @@ export default async function handler(
             .from('clients')
             .update({ auth_user_id: user.id })
             .eq('id', clientByEmail.id);
-          console.log('Linked existing client by email to auth user:', clientByEmail.id);
         }
         existingClient = { id: clientByEmail.id };
       }
@@ -114,8 +113,6 @@ export default async function handler(
         message: `Failed to create client record: ${clientError.message}`,
       });
     }
-
-    console.log('Created new client:', { clientId: newClient.id, userId: user.id, email: user.email });
 
     // Create client_settings for the new client
     const { error: settingsError } = await serviceClient

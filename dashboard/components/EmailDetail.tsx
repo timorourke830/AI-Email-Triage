@@ -76,15 +76,6 @@ export default function EmailDetail({
   const canApprove = email.status === 'awaiting_approval';
   const canProcess = email.status === 'pending' && !!onProcess;
 
-  // Debug logging
-  console.log('[EmailDetail] Debug:', {
-    status: email.status,
-    statusType: typeof email.status,
-    onProcessDefined: !!onProcess,
-    canProcess,
-    statusIsPending: email.status === 'pending',
-  });
-
   return (
     <div style={styles.container}>
       {/* Header */}
@@ -123,28 +114,24 @@ export default function EmailDetail({
         <div style={styles.emailBody}>{email.body}</div>
       </div>
 
-      {/* Process Button for Pending Emails - Always visible for debugging */}
-      <div style={styles.processSection}>
-        <div style={styles.processInfo}>
-          <h3 style={styles.processTitle}>
-            {email.status === 'pending' ? "This email hasn't been processed yet" : `Status: ${email.status}`}
-          </h3>
-          <p style={styles.processDesc}>
-            Debug: status="{email.status}" | onProcess={onProcess ? 'YES' : 'NO'} | canProcess={String(canProcess)}
-          </p>
+      {/* Process Button for Pending Emails */}
+      {canProcess && (
+        <div style={styles.processSection}>
+          <div style={styles.processInfo}>
+            <h3 style={styles.processTitle}>This email hasn&apos;t been processed yet</h3>
+            <p style={styles.processDesc}>
+              Click the button to classify this email and generate a draft reply.
+            </p>
+          </div>
+          <button
+            style={styles.processButton}
+            onClick={handleProcess}
+            disabled={processing}
+          >
+            {processing ? 'Processing...' : 'Process with AI'}
+          </button>
         </div>
-        <button
-          style={{
-            ...styles.processButton,
-            opacity: canProcess ? 1 : 0.5,
-            cursor: canProcess ? 'pointer' : 'not-allowed',
-          }}
-          onClick={handleProcess}
-          disabled={processing || !canProcess}
-        >
-          {processing ? 'Processing...' : 'Process with AI'}
-        </button>
-      </div>
+      )}
 
       {/* Attachments */}
       {attachments.length > 0 && (

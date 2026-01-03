@@ -35,16 +35,12 @@ export default async function handler(
     }
   );
 
-  console.log('[auth/callback] Exchanging code for session...');
-
-  const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+  const { error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error) {
     console.error('[auth/callback] Code exchange failed:', error.message);
     return res.redirect(`/auth/signin?error=${encodeURIComponent(error.message)}`);
   }
-
-  console.log('[auth/callback] Code exchange successful, session established');
 
   // Determine redirect destination based on type or next parameter
   let redirectTo = '/';
@@ -60,6 +56,5 @@ export default async function handler(
     }
   }
 
-  console.log('[auth/callback] Redirecting to:', redirectTo);
   return res.redirect(redirectTo);
 }

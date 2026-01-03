@@ -123,10 +123,9 @@ export default function SetupPage() {
           }
           setLoading(false);
         }
-      } catch (err) {
+      } catch {
         if (!isMounted) return;
         // Client may not exist yet - try to create it
-        console.log('getSettings failed, attempting to create client...');
         try {
           const initRes = await fetch('/api/auth/init-client', {
             method: 'POST',

@@ -26,13 +26,9 @@ export default function ResetPasswordPage() {
 
       const { data: { session } } = await supabase.auth.getSession();
 
-      console.log('[reset-password] Session check:', !!session);
-
       if (session) {
         setPageState('ready');
       } else {
-        // No session - the callback didn't work or link is invalid
-        console.log('[reset-password] No session found - invalid state');
         setPageState('invalid');
       }
     }

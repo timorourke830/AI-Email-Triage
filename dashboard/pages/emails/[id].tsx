@@ -69,36 +69,40 @@ export default function EmailPage() {
 
   const handleProcess = async () => {
     if (!id || typeof id !== 'string') {
-      setError(`Invalid email ID: ${id} (type: ${typeof id})`);
+      setError('Unable to process this email. Please refresh and try again.');
       return;
     }
 
     try {
-      console.log('[handleProcess] Processing email with ID:', id);
-      setSuccessMessage(`Processing email ${id.substring(0, 8)}...`);
+      setSuccessMessage('Processing email...');
       setError(null);
       const result = await processEmails({ emailId: id });
-      console.log('[handleProcess] Result:', result);
 
       if (result.processed === 0) {
-        setError(`No emails processed. Details: ${JSON.stringify(result)}`);
+        const errorDetail = result.details?.find(d => d.error);
+        if (errorDetail?.error?.includes('expected \'pending\'')) {
+          setError('This email has already been processed.');
+        } else {
+          setError('Unable to process this email. It may have already been processed.');
+        }
         setSuccessMessage(null);
         return;
       }
 
       if (result.errors > 0) {
         const errorDetail = result.details?.find(d => d.error);
-        setError(`Processing error: ${errorDetail?.error || 'Unknown error'}`);
+        setError(errorDetail?.error || 'An error occurred while processing. Please try again.');
         setSuccessMessage(null);
         return;
       }
 
       await fetchEmail(); // Refresh to see results
-      setSuccessMessage(`Email processed: ${result.details?.[0]?.classification || 'success'}`);
+      const classification = result.details?.[0]?.classification;
+      setSuccessMessage(classification ? `Classified as: ${classification}` : 'Email processed successfully');
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
-      console.error('[handleProcess] Error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to process email');
+      console.error('Failed to process email:', err);
+      setError('An error occurred while processing. Please try again.');
       setSuccessMessage(null);
     }
   };

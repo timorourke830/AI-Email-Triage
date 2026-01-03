@@ -42,12 +42,7 @@ async function handler(
   req: AuthenticatedRequest,
   res: NextApiResponse<ProcessResponse>
 ): Promise<void> {
-  const timestamp = new Date().toISOString();
-
-  console.log(`[PROCESS-API] ${timestamp} - Request received: ${req.method} /api/emails/process`);
-
   if (req.method !== 'POST') {
-    console.log(`[PROCESS-API] ${timestamp} - ERROR: Method not allowed: ${req.method}`);
     res.setHeader('Allow', ['POST']);
     res.status(405).json({
       success: false,
@@ -57,22 +52,13 @@ async function handler(
     return;
   }
 
-  const { clientId, userId, userEmail } = req;
+  const { clientId } = req;
   const { limit = 10, emailId } = req.body || {};
-
-  console.log(`[PROCESS-API] ${timestamp} - Authentication verified:`, {
-    userId,
-    clientId,
-    userEmail,
-  });
-  console.log(`[PROCESS-API] ${timestamp} - Request body:`, JSON.stringify(req.body));
-  console.log(`[PROCESS-API] ${timestamp} - Request parameters: limit=${limit}, emailId=${emailId || 'none'}, emailIdType=${typeof emailId}`);
 
   const supabase = getSupabaseServiceClient();
 
   // If specific emailId provided, first check if the email exists and its current status
   if (emailId) {
-    console.log(`[PROCESS-API] ${timestamp} - Checking email ${emailId} exists and status...`);
     const { data: emailCheck, error: checkError } = await supabase
       .from('emails')
       .select('id, status, client_id')
@@ -80,31 +66,28 @@ async function handler(
       .single();
 
     if (checkError || !emailCheck) {
-      console.error(`[PROCESS-API] ${timestamp} - ERROR: Email ${emailId} not found:`, checkError);
+      console.error('[PROCESS-API] Email not found:', emailId);
       res.status(404).json({
         success: false,
         processed: 0,
         errors: 1,
-        details: [{ email_id: emailId, classification: null, status: 'error', error: `Email not found: ${emailId}` }],
+        details: [{ email_id: emailId, classification: null, status: 'error', error: 'Email not found' }],
       });
       return;
     }
 
-    console.log(`[PROCESS-API] ${timestamp} - Email ${emailId} found:`, emailCheck);
-
     if (emailCheck.client_id !== clientId) {
-      console.error(`[PROCESS-API] ${timestamp} - ERROR: Email ${emailId} belongs to different client`);
+      console.error('[PROCESS-API] Unauthorized access attempt:', { emailId, clientId });
       res.status(403).json({
         success: false,
         processed: 0,
         errors: 1,
-        details: [{ email_id: emailId, classification: null, status: 'error', error: 'Email belongs to different client' }],
+        details: [{ email_id: emailId, classification: null, status: 'error', error: 'Access denied' }],
       });
       return;
     }
 
     if (emailCheck.status !== 'pending') {
-      console.error(`[PROCESS-API] ${timestamp} - ERROR: Email ${emailId} status is '${emailCheck.status}', not 'pending'`);
       res.status(400).json({
         success: false,
         processed: 0,
@@ -123,19 +106,15 @@ async function handler(
     .eq('status', 'pending');
 
   if (emailId) {
-    // Process specific email
-    console.log(`[PROCESS-API] ${timestamp} - Fetching specific email ${emailId} for client ${clientId}...`);
     query = query.eq('id', emailId);
   } else {
-    // Process batch of oldest pending emails
-    console.log(`[PROCESS-API] ${timestamp} - Fetching pending emails for client ${clientId}...`);
     query = query.order('created_at', { ascending: true }).limit(Math.min(limit, 50));
   }
 
   const { data: emails, error: fetchError } = await query as { data: EmailRow[] | null; error: unknown };
 
   if (fetchError) {
-    console.error(`[PROCESS-API] ${timestamp} - ERROR: Failed to fetch pending emails:`, fetchError);
+    console.error('[PROCESS-API] Failed to fetch emails:', fetchError);
     res.status(500).json({
       success: false,
       processed: 0,
@@ -145,7 +124,6 @@ async function handler(
   }
 
   if (!emails || emails.length === 0) {
-    console.log(`[PROCESS-API] ${timestamp} - No pending emails found for client ${clientId}, emailId filter: ${emailId || 'none'}`);
     res.status(200).json({
       success: true,
       processed: 0,
@@ -155,45 +133,24 @@ async function handler(
     return;
   }
 
-  console.log(`[PROCESS-API] ${timestamp} - Found ${emails.length} pending emails to process`);
-
   // Get client settings
-  console.log(`[PROCESS-API] ${timestamp} - Fetching client settings for ${clientId}...`);
-  const { data: settings, error: settingsError } = await supabase
+  const { data: settings } = await supabase
     .from('client_settings')
     .select('reply_tone, signature, auto_approve_threshold')
     .eq('client_id', clientId)
     .single() as { data: ClientSettings | null; error: unknown };
 
-  if (settingsError) {
-    console.warn(`[PROCESS-API] ${timestamp} - WARNING: Failed to fetch client settings:`, settingsError);
-  }
-
   const tone = settings?.reply_tone || 'neutral';
   const signature = settings?.signature || '';
-  // IMPORTANT: Use ?? instead of || because 0 is a valid value meaning "never auto-approve"
-  // When threshold is 0, no email should be auto-approved (confidence can never exceed 0)
+  // Use ?? instead of || because 0 is a valid value meaning "never auto-approve"
   const autoApproveThreshold = settings?.auto_approve_threshold ?? 0;
-
-  console.log(`[PROCESS-API] ${timestamp} - Client settings loaded:`, {
-    tone,
-    hasSignature: !!signature,
-    signatureLength: signature.length,
-    autoApproveThreshold,
-    autoApproveEnabled: autoApproveThreshold > 0,
-  });
 
   const llm = getLLMClient();
   const details: ProcessResponse['details'] = [];
   let processed = 0;
   let errors = 0;
 
-  console.log(`[PROCESS-API] ${timestamp} - Starting email processing loop...`);
-
   for (const email of emails) {
-    const emailTimestamp = new Date().toISOString();
-    console.log(`[PROCESS-API] ${emailTimestamp} - Processing email ${email.id}: "${email.subject?.substring(0, 50)}..."`);
-
     try {
       // Mark as processing
       const { error: markProcessingError } = await supabase
@@ -202,12 +159,10 @@ async function handler(
         .eq('id', email.id);
 
       if (markProcessingError) {
-        console.error(`[PROCESS-API] ${emailTimestamp} - ERROR: Failed to mark email as processing:`, markProcessingError);
         throw new Error(`Failed to update status: ${markProcessingError.message}`);
       }
 
       // Classify the email
-      console.log(`[PROCESS-API] ${emailTimestamp} - Classifying email ${email.id}...`);
       const { result: classification, error: classifyError } = await llm.classifyEmail(
         email.from_address,
         email.subject,
@@ -215,16 +170,15 @@ async function handler(
       );
 
       if (classifyError || !classification) {
-        console.error(`[PROCESS-API] ${emailTimestamp} - ERROR: Classification failed for email ${email.id}:`, classifyError);
+        console.error('[PROCESS-API] Classification failed:', email.id, classifyError);
         errors++;
         details?.push({
           email_id: email.id,
           classification: null,
           status: 'error',
-          error: classifyError || 'Classification failed',
+          error: 'Failed to classify email',
         });
 
-        // Reset to pending on error
         await supabase
           .from('emails')
           .update({ status: 'pending' })
@@ -232,15 +186,8 @@ async function handler(
         continue;
       }
 
-      console.log(`[PROCESS-API] ${emailTimestamp} - Classification result for ${email.id}:`, {
-        classification: classification.classification,
-        confidence: classification.confidence,
-        reasoning: classification.reasoning?.substring(0, 100) + '...',
-      });
-
       // Handle spam - mark as rejected
       if (classification.classification === 'spam') {
-        console.log(`[PROCESS-API] ${emailTimestamp} - Email ${email.id} classified as spam, auto-rejecting`);
         await supabase
           .from('emails')
           .update({
@@ -265,12 +212,10 @@ async function handler(
           classification: 'spam',
           status: 'rejected',
         });
-        console.log(`[PROCESS-API] ${emailTimestamp} - Email ${email.id} spam rejection complete`);
         continue;
       }
 
       // Draft a reply for non-spam emails
-      console.log(`[PROCESS-API] ${emailTimestamp} - Drafting reply for email ${email.id}...`);
       const { result: draft, error: draftError } = await llm.draftReply({
         from: email.from_address,
         subject: email.subject,
@@ -282,16 +227,15 @@ async function handler(
       });
 
       if (draftError || !draft) {
-        console.error(`[PROCESS-API] ${emailTimestamp} - ERROR: Draft failed for email ${email.id}:`, draftError);
+        console.error('[PROCESS-API] Draft failed:', email.id, draftError);
         errors++;
         details?.push({
           email_id: email.id,
           classification: classification.classification,
           status: 'error',
-          error: draftError || 'Draft failed',
+          error: 'Failed to generate reply',
         });
 
-        // Still save the classification
         await supabase
           .from('emails')
           .update({
@@ -303,39 +247,18 @@ async function handler(
         continue;
       }
 
-      console.log(`[PROCESS-API] ${emailTimestamp} - Draft generated for ${email.id}:`, {
-        subject: draft.subject?.substring(0, 50) + '...',
-        bodyLength: draft.body.length,
-        tone: draft.tone,
-      });
-
       // Combine draft body with signature
       const fullReply = signature
         ? `Subject: ${draft.subject}\n\n${draft.body}\n\n${signature}`
         : `Subject: ${draft.subject}\n\n${draft.body}`;
 
       // Check if we should auto-approve based on confidence
-      // - If threshold is 0, NEVER auto-approve (user chose "require approval for all")
-      // - If threshold > 0, auto-approve when confidence exceeds threshold
-      // - Never auto-approve complaints regardless of confidence
       const shouldAutoApprove =
         autoApproveThreshold > 0 &&
         classification.confidence >= autoApproveThreshold &&
         classification.classification !== 'complaint';
 
-      console.log(`[PROCESS-API] ${emailTimestamp} - Auto-approve decision for ${email.id}:`, {
-        shouldAutoApprove,
-        autoApproveThreshold,
-        thresholdEnabled: autoApproveThreshold > 0,
-        confidence: classification.confidence,
-        meetsThreshold: classification.confidence >= autoApproveThreshold,
-        isComplaint: classification.classification === 'complaint',
-        classification: classification.classification,
-      });
-
-      // Update email with classification and draft
       const newStatus = shouldAutoApprove ? 'sent' : 'awaiting_approval';
-      console.log(`[PROCESS-API] ${emailTimestamp} - Updating email ${email.id} status to: ${newStatus}`);
 
       const { error: updateError } = await supabase
         .from('emails')
@@ -355,19 +278,12 @@ async function handler(
         .eq('id', email.id);
 
       if (updateError) {
-        console.error(`[PROCESS-API] ${emailTimestamp} - ERROR: Failed to update email ${email.id}:`, updateError);
         throw new Error(`Failed to save processing results: ${updateError.message}`);
       }
 
-      console.log(`[PROCESS-API] ${emailTimestamp} - Successfully updated email ${email.id} in database`);
-
-      // Create audit log
-      const auditAction = shouldAutoApprove ? 'auto_approved' : 'draft_created';
-      console.log(`[PROCESS-API] ${emailTimestamp} - Creating audit log: ${auditAction} for email ${email.id}`);
-
       await supabase.from('audit_logs').insert({
         email_id: email.id,
-        action: auditAction,
+        action: shouldAutoApprove ? 'auto_approved' : 'draft_created',
         actor: 'system',
         details: {
           classification,
@@ -382,24 +298,16 @@ async function handler(
         classification: classification.classification,
         status: newStatus,
       });
-
-      console.log(`[PROCESS-API] ${emailTimestamp} - Email ${email.id} processing complete: ${newStatus}`);
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
-      console.error(`[PROCESS-API] ${emailTimestamp} - ERROR: Exception processing email ${email.id}:`, {
-        error: errorMsg,
-        stack: err instanceof Error ? err.stack : undefined,
-      });
-
+      console.error('[PROCESS-API] Error processing email:', email.id, err);
       errors++;
       details?.push({
         email_id: email.id,
         classification: null,
         status: 'error',
-        error: errorMsg,
+        error: 'An error occurred while processing',
       });
 
-      // Reset to pending on error
       await supabase
         .from('emails')
         .update({ status: 'pending' })
@@ -407,13 +315,6 @@ async function handler(
     }
   }
 
-  console.log(`[PROCESS-API] ${timestamp} - Processing loop complete:`, {
-    total: emails.length,
-    processed,
-    errors,
-  });
-
-  console.log(`[PROCESS-API] ${timestamp} - Request complete. Returning response.`);
   res.status(200).json({
     success: errors === 0,
     processed,
