@@ -23,7 +23,8 @@ export default function App({ Component, pageProps }: AppProps) {
         setIsAuthenticated(true);
 
         // If authenticated and on auth route, redirect to home
-        if (isOnAuthRoute) {
+        // EXCEPT for reset-password page - user needs to stay there to set new password
+        if (isOnAuthRoute && router.pathname !== '/auth/reset-password') {
           router.replace('/');
           return;
         }
@@ -67,7 +68,8 @@ export default function App({ Component, pageProps }: AppProps) {
       } else if (event === 'SIGNED_IN' && session) {
         setIsAuthenticated(true);
         // Let the next page load handle setup check
-        if (AUTH_ROUTES.includes(router.pathname)) {
+        // EXCEPT for reset-password page - user needs to stay there to set new password
+        if (AUTH_ROUTES.includes(router.pathname) && router.pathname !== '/auth/reset-password') {
           router.replace('/');
         }
       }

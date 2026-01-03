@@ -15,18 +15,49 @@ export default function ResetPasswordPage() {
 
   // Check if user has a valid session from the reset link
   useEffect(() => {
-    const checkSession = async () => {
-      const supabase = getSupabaseBrowserClient();
-      const { data: { session } } = await supabase.auth.getSession();
+    const supabase = getSupabaseBrowserClient();
+    let timeoutId: NodeJS.Timeout;
 
+    // Listen for auth state changes - Supabase will fire PASSWORD_RECOVERY
+    // when it processes the reset token from the URL
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('Auth state change:', event, !!session);
+
+      if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') {
+        // User has a valid recovery session
+        setHasValidSession(true);
+        setSessionChecked(true);
+        if (timeoutId) clearTimeout(timeoutId);
+      } else if (event === 'SIGNED_OUT') {
+        setHasValidSession(false);
+        setSessionChecked(true);
+      }
+    });
+
+    // Also check for existing session (in case tokens were already processed)
+    const checkExistingSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         setHasValidSession(true);
+        setSessionChecked(true);
+        if (timeoutId) clearTimeout(timeoutId);
       }
-      setSessionChecked(true);
     };
+    checkExistingSession();
 
-    checkSession();
-  }, []);
+    // Set a timeout - if no session after 3 seconds, show error
+    timeoutId = setTimeout(() => {
+      if (!sessionChecked) {
+        setSessionChecked(true);
+        setHasValidSession(false);
+      }
+    }, 3000);
+
+    return () => {
+      subscription.unsubscribe();
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [sessionChecked]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
