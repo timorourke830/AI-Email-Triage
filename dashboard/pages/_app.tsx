@@ -5,7 +5,7 @@ import { getSupabaseBrowserClient } from '@/lib/supabase';
 import { getSettings } from '@/lib/api';
 
 // Pages that don't require authentication
-const AUTH_ROUTES = ['/auth/signin', '/auth/signup', '/auth/forgot-password', '/auth/reset-password'];
+const AUTH_ROUTES = ['/auth/signin', '/auth/signup', '/auth/forgot-password', '/auth/reset-password', '/auth/confirm'];
 
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter();
@@ -23,15 +23,15 @@ export default function App({ Component, pageProps }: AppProps) {
         setIsAuthenticated(true);
 
         // If authenticated and on auth route, redirect to home
-        // EXCEPT for reset-password page - user needs to stay there to set new password
-        if (isOnAuthRoute && router.pathname !== '/auth/reset-password') {
+        // EXCEPT for reset-password and confirm pages - user needs to complete these flows first
+        if (isOnAuthRoute && router.pathname !== '/auth/reset-password' && router.pathname !== '/auth/confirm') {
           router.replace('/');
           return;
         }
 
-        // If authenticated, check if setup is completed (except for setup and reset-password pages)
-        // Skip setup check for reset-password - user needs to complete password reset first
-        if (router.pathname !== '/setup' && router.pathname !== '/auth/reset-password') {
+        // If authenticated, check if setup is completed (except for setup, reset-password, and confirm pages)
+        // Skip setup check for reset-password and confirm - user needs to complete these flows first
+        if (router.pathname !== '/setup' && router.pathname !== '/auth/reset-password' && router.pathname !== '/auth/confirm') {
           try {
             const { settings } = await getSettings();
             if (!settings?.setup_completed) {
@@ -69,8 +69,8 @@ export default function App({ Component, pageProps }: AppProps) {
       } else if (event === 'SIGNED_IN' && session) {
         setIsAuthenticated(true);
         // Let the next page load handle setup check
-        // EXCEPT for reset-password page - user needs to stay there to set new password
-        if (AUTH_ROUTES.includes(router.pathname) && router.pathname !== '/auth/reset-password') {
+        // EXCEPT for reset-password and confirm pages - user needs to complete these flows first
+        if (AUTH_ROUTES.includes(router.pathname) && router.pathname !== '/auth/reset-password' && router.pathname !== '/auth/confirm') {
           router.replace('/');
         }
       }
