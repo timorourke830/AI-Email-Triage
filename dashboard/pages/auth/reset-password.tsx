@@ -1,8 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
-import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
 import { getSupabaseBrowserClient } from '@/lib/supabase';
 
 type PageState = 'loading' | 'ready' | 'invalid' | 'success';
@@ -15,129 +14,35 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState<string | null>(null);
   const [pageState, setPageState] = useState<PageState>('loading');
 
-  // Track if we've already set the state to avoid race conditions
-  const stateSetRef = useRef(false);
-  const codeExchangedRef = useRef(false);
-
   useEffect(() => {
-    // Wait for router to be ready
-    if (!router.isReady) return;
-
     const supabase = getSupabaseBrowserClient();
     let mounted = true;
 
-    // Helper to set page state only once
-    const setStateOnce = (state: PageState) => {
-      if (mounted && !stateSetRef.current) {
-        stateSetRef.current = true;
-        setPageState(state);
+    async function checkSession() {
+      // Give a moment for session to be established from cookies
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      if (!mounted) return;
+
+      const { data: { session } } = await supabase.auth.getSession();
+
+      console.log('[reset-password] Session check:', !!session);
+
+      if (session) {
+        setPageState('ready');
+      } else {
+        // No session - the callback didn't work or link is invalid
+        console.log('[reset-password] No session found - invalid state');
+        setPageState('invalid');
       }
-    };
+    }
 
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event: AuthChangeEvent, session: Session | null) => {
-        if (!mounted) return;
-
-        console.log('[reset-password] Auth event:', event, 'Session:', !!session);
-
-        // PASSWORD_RECOVERY is the ideal event, but PKCE may only fire SIGNED_IN
-        if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') {
-          if (session) {
-            setStateOnce('ready');
-          }
-        }
-      }
-    );
-
-    // Handle PKCE code exchange
-    const handleAuth = async () => {
-      // Check for code parameter in URL (PKCE flow)
-      const code = router.query.code as string | undefined;
-
-      // Also check URL hash for access_token (implicit flow fallback)
-      const hash = typeof window !== 'undefined' ? window.location.hash : '';
-      const hashParams = new URLSearchParams(hash.replace('#', ''));
-      const accessToken = hashParams.get('access_token');
-      const type = hashParams.get('type');
-
-      console.log('[reset-password] URL params:', {
-        code: !!code,
-        accessToken: !!accessToken,
-        type,
-        fullQuery: router.query
-      });
-
-      // If we have a code, exchange it for a session (PKCE flow)
-      if (code && !codeExchangedRef.current) {
-        codeExchangedRef.current = true;
-        console.log('[reset-password] Exchanging code for session...');
-
-        try {
-          const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-
-          if (exchangeError) {
-            console.error('[reset-password] Code exchange failed:', exchangeError.message);
-            setStateOnce('invalid');
-            return;
-          }
-
-          if (data.session) {
-            console.log('[reset-password] Code exchange successful, session established');
-            setStateOnce('ready');
-            return;
-          }
-        } catch (err) {
-          console.error('[reset-password] Code exchange error:', err);
-          setStateOnce('invalid');
-          return;
-        }
-      }
-
-      // If we have an access_token in hash (implicit flow), Supabase client handles it
-      // Just wait a moment for the client to process
-      if (accessToken && type === 'recovery') {
-        console.log('[reset-password] Access token in hash, waiting for client to process...');
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-
-      // Check for existing session
-      if (!stateSetRef.current) {
-        const { data: { session } } = await supabase.auth.getSession();
-
-        console.log('[reset-password] Session check:', !!session);
-
-        if (session) {
-          setStateOnce('ready');
-        } else if (!code && !accessToken) {
-          // No code, no token, no session - invalid link
-          console.log('[reset-password] No auth params and no session - invalid');
-          setStateOnce('invalid');
-        } else {
-          // Had params but no session yet - wait a bit more
-          setTimeout(async () => {
-            if (!mounted || stateSetRef.current) return;
-
-            const { data: { session: finalSession } } = await supabase.auth.getSession();
-            console.log('[reset-password] Final session check:', !!finalSession);
-
-            if (finalSession) {
-              setStateOnce('ready');
-            } else {
-              setStateOnce('invalid');
-            }
-          }, 2000);
-        }
-      }
-    };
-
-    handleAuth();
+    checkSession();
 
     return () => {
       mounted = false;
-      subscription.unsubscribe();
     };
-  }, [router.isReady, router.query]);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -195,7 +100,7 @@ export default function ResetPasswordPage() {
           <div style={styles.card}>
             <div style={styles.loading}>
               <div style={styles.spinner}></div>
-              <p>Verifying reset link...</p>
+              <p>Verifying session...</p>
             </div>
           </div>
         </div>
