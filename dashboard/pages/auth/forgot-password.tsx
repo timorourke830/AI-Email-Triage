@@ -17,11 +17,12 @@ export default function ForgotPasswordPage() {
     try {
       const supabase = getSupabaseBrowserClient();
 
-      // Get the current origin for the redirect URL
-      const redirectUrl = `${window.location.origin}/auth/reset-password`;
+      // The redirectTo URL must be whitelisted in Supabase Dashboard
+      // Authentication > URL Configuration > Redirect URLs
+      const redirectTo = `${window.location.origin}/auth/reset-password`;
 
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: redirectUrl,
+        redirectTo,
       });
 
       if (resetError) {
@@ -47,7 +48,7 @@ export default function ForgotPasswordPage() {
         <div style={styles.container}>
           <div style={styles.card}>
             <div style={styles.header}>
-              <div style={styles.iconSuccess}>✓</div>
+              <div style={styles.iconSuccess}>&#10003;</div>
               <h1 style={styles.title}>Check Your Email</h1>
               <p style={styles.subtitle}>
                 We&apos;ve sent a password reset link to <strong>{email}</strong>

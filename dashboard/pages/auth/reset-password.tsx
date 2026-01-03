@@ -4,60 +4,60 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { getSupabaseBrowserClient } from '@/lib/supabase';
 
+type PageState = 'loading' | 'ready' | 'invalid' | 'success';
+
 export default function ResetPasswordPage() {
   const router = useRouter();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sessionChecked, setSessionChecked] = useState(false);
-  const [hasValidSession, setHasValidSession] = useState(false);
+  const [pageState, setPageState] = useState<PageState>('loading');
 
-  // Check if user has a valid session from the reset link
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
-    let timeoutId: NodeJS.Timeout;
 
-    // Listen for auth state changes - Supabase will fire PASSWORD_RECOVERY
-    // when it processes the reset token from the URL
+    // Listen for the PASSWORD_RECOVERY event from Supabase
+    // This fires when Supabase processes the reset token from the URL hash
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('Auth state change:', event, !!session);
+      console.log('[Reset Password] Auth event:', event);
 
-      if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') {
-        // User has a valid recovery session
-        setHasValidSession(true);
-        setSessionChecked(true);
-        if (timeoutId) clearTimeout(timeoutId);
+      if (event === 'PASSWORD_RECOVERY') {
+        // Supabase has validated the recovery token
+        // User can now set a new password
+        setPageState('ready');
+      } else if (event === 'SIGNED_IN' && session) {
+        // Sometimes SIGNED_IN fires instead of PASSWORD_RECOVERY
+        // Check if we're on this page with a recovery flow
+        setPageState('ready');
       } else if (event === 'SIGNED_OUT') {
-        setHasValidSession(false);
-        setSessionChecked(true);
+        // User was signed out, likely invalid/expired token
+        setPageState('invalid');
       }
     });
 
-    // Also check for existing session (in case tokens were already processed)
-    const checkExistingSession = async () => {
+    // Also check if there's already a session (in case event already fired)
+    const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
+
       if (session) {
-        setHasValidSession(true);
-        setSessionChecked(true);
-        if (timeoutId) clearTimeout(timeoutId);
+        // There's an active session, allow password reset
+        setPageState('ready');
+      } else {
+        // No session - wait a bit for Supabase to process URL hash
+        // If no session after timeout, show error
+        setTimeout(() => {
+          setPageState((current) => current === 'loading' ? 'invalid' : current);
+        }, 2000);
       }
     };
-    checkExistingSession();
 
-    // Set a timeout - if no session after 3 seconds, show error
-    timeoutId = setTimeout(() => {
-      if (!sessionChecked) {
-        setSessionChecked(true);
-        setHasValidSession(false);
-      }
-    }, 3000);
+    checkSession();
 
     return () => {
       subscription.unsubscribe();
-      if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [sessionChecked]);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,6 +81,7 @@ export default function ResetPasswordPage() {
     try {
       const supabase = getSupabaseBrowserClient();
 
+      // Update the user's password
       const { error: updateError } = await supabase.auth.updateUser({
         password: password,
       });
@@ -91,19 +92,24 @@ export default function ResetPasswordPage() {
         return;
       }
 
-      // Sign out after password reset to ensure clean state
+      // Password updated successfully
+      setPageState('success');
+
+      // Sign out to ensure clean state, then redirect to sign in
       await supabase.auth.signOut();
 
-      // Redirect to sign in with success message
-      router.push('/auth/signin?message=password_reset');
+      // Redirect after a brief delay to show success message
+      setTimeout(() => {
+        router.push('/auth/signin?message=password_reset');
+      }, 2000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
       setLoading(false);
     }
   };
 
-  // Show loading while checking session
-  if (!sessionChecked) {
+  // Loading state while checking for valid recovery session
+  if (pageState === 'loading') {
     return (
       <>
         <Head>
@@ -111,15 +117,41 @@ export default function ResetPasswordPage() {
         </Head>
         <div style={styles.container}>
           <div style={styles.card}>
-            <div style={styles.loading}>Verifying reset link...</div>
+            <div style={styles.loading}>
+              <div style={styles.spinner}></div>
+              <p>Verifying reset link...</p>
+            </div>
           </div>
         </div>
       </>
     );
   }
 
-  // Show error if no valid session (invalid or expired link)
-  if (!hasValidSession) {
+  // Success state after password reset
+  if (pageState === 'success') {
+    return (
+      <>
+        <Head>
+          <title>Password Reset - AI Email Triage</title>
+        </Head>
+        <div style={styles.container}>
+          <div style={styles.card}>
+            <div style={styles.header}>
+              <div style={styles.iconSuccess}>&#10003;</div>
+              <h1 style={styles.title}>Password Reset!</h1>
+              <p style={styles.subtitle}>
+                Your password has been successfully updated.
+                Redirecting to sign in...
+              </p>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // Invalid/expired link state
+  if (pageState === 'invalid') {
     return (
       <>
         <Head>
@@ -152,6 +184,7 @@ export default function ResetPasswordPage() {
     );
   }
 
+  // Ready state - show password reset form
   return (
     <>
       <Head>
@@ -207,7 +240,7 @@ export default function ResetPasswordPage() {
               style={styles.submitButton}
               disabled={loading}
             >
-              {loading ? 'Resetting...' : 'Reset Password'}
+              {loading ? 'Updating Password...' : 'Reset Password'}
             </button>
           </form>
         </div>
@@ -236,6 +269,19 @@ const styles: Record<string, React.CSSProperties> = {
   header: {
     textAlign: 'center' as const,
     marginBottom: '32px',
+  },
+  iconSuccess: {
+    width: '48px',
+    height: '48px',
+    borderRadius: '50%',
+    backgroundColor: '#dcfce7',
+    color: '#16a34a',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '24px',
+    fontWeight: 'bold',
+    margin: '0 auto 16px auto',
   },
   iconError: {
     width: '48px',
@@ -320,6 +366,15 @@ const styles: Record<string, React.CSSProperties> = {
     textAlign: 'center' as const,
     color: '#6b7280',
     padding: '40px 0',
+  },
+  spinner: {
+    width: '32px',
+    height: '32px',
+    border: '3px solid #e5e7eb',
+    borderTopColor: '#3b82f6',
+    borderRadius: '50%',
+    margin: '0 auto 16px auto',
+    animation: 'spin 1s linear infinite',
   },
   footer: {
     textAlign: 'center' as const,
