@@ -160,9 +160,6 @@ export async function refreshAccessToken(params: {
  * Get valid access token for a client, refreshing if needed
  */
 export async function getValidAccessToken(clientId: string): Promise<string> {
-  const timestamp = new Date().toISOString();
-  console.log(`[OUTLOOK-GRAPH] ${timestamp} - Getting valid access token for client ${clientId}`);
-
   const supabase = getSupabaseServiceClient();
 
   const { data, error } = await supabase
@@ -172,19 +169,17 @@ export async function getValidAccessToken(clientId: string): Promise<string> {
     .single();
 
   if (error || !data) {
-    console.error(`[OUTLOOK-GRAPH] ${timestamp} - ERROR: Failed to get Microsoft OAuth credentials from DB. Error: ${error?.message || 'no data'}`);
+    console.error('[OUTLOOK-GRAPH] Failed to get Microsoft OAuth credentials:', error?.message);
     throw new Error('Failed to get Microsoft OAuth credentials');
   }
 
-  console.log(`[OUTLOOK-GRAPH] ${timestamp} - DB data retrieved. Has access token: ${!!data.microsoft_access_token_encrypted}, Has refresh token: ${!!data.microsoft_refresh_token_encrypted}, Has client ID: ${!!data.microsoft_client_id}, Has client secret: ${!!data.microsoft_client_secret_encrypted}`);
-
   if (!data.microsoft_access_token_encrypted || !data.microsoft_refresh_token_encrypted) {
-    console.error(`[OUTLOOK-GRAPH] ${timestamp} - ERROR: Microsoft OAuth not configured`);
+    console.error('[OUTLOOK-GRAPH] Microsoft OAuth not configured');
     throw new Error('Microsoft OAuth not configured. Please connect your Outlook account.');
   }
 
   if (!data.microsoft_client_id || !data.microsoft_client_secret_encrypted) {
-    console.error(`[OUTLOOK-GRAPH] ${timestamp} - ERROR: Microsoft app credentials not configured`);
+    console.error('[OUTLOOK-GRAPH] Microsoft app credentials not configured');
     throw new Error('Microsoft app credentials not configured.');
   }
 
@@ -193,24 +188,18 @@ export async function getValidAccessToken(clientId: string): Promise<string> {
   const clientSecret = decrypt(data.microsoft_client_secret_encrypted);
   const expiresAt = data.microsoft_token_expires ? new Date(data.microsoft_token_expires) : null;
 
-  console.log(`[OUTLOOK-GRAPH] ${timestamp} - Token expires at: ${expiresAt?.toISOString() || 'unknown'}`);
-
   // Check if token is expired (with 5 minute buffer)
   const now = new Date();
   const bufferMs = 5 * 60 * 1000;
 
   if (!expiresAt || now.getTime() > expiresAt.getTime() - bufferMs) {
     // Token expired or about to expire - refresh it
-    console.log(`[OUTLOOK-GRAPH] ${timestamp} - Access token expired or expiring soon, refreshing...`);
-
     try {
       const newTokens = await refreshAccessToken({
         refreshToken,
         clientId: data.microsoft_client_id,
         clientSecret,
       });
-
-      console.log(`[OUTLOOK-GRAPH] ${timestamp} - Token refreshed successfully. New token expires in ${newTokens.expires_in} seconds`);
 
       // Calculate new expiry
       const newExpiresAt = new Date(Date.now() + newTokens.expires_in * 1000);
@@ -225,15 +214,13 @@ export async function getValidAccessToken(clientId: string): Promise<string> {
         })
         .eq('client_id', clientId);
 
-      console.log(`[OUTLOOK-GRAPH] ${timestamp} - Updated tokens in database`);
       return newTokens.access_token;
     } catch (err) {
-      console.error(`[OUTLOOK-GRAPH] ${timestamp} - ERROR: Failed to refresh token:`, err instanceof Error ? err.message : err);
+      console.error('[OUTLOOK-GRAPH] Failed to refresh token:', err instanceof Error ? err.message : err);
       throw err;
     }
   }
 
-  console.log(`[OUTLOOK-GRAPH] ${timestamp} - Using existing valid access token`);
   return accessToken;
 }
 
@@ -265,10 +252,6 @@ export async function getEmails(params: {
   top?: number;
 }): Promise<GraphEmail[]> {
   const { accessToken, sinceDays = 7, unreadOnly = false, top = 50 } = params;
-  const timestamp = new Date().toISOString();
-
-  console.log(`[OUTLOOK-GRAPH] ${timestamp} - Fetching emails from Graph API`);
-  console.log(`[OUTLOOK-GRAPH] ${timestamp} - Parameters: sinceDays=${sinceDays}, unreadOnly=${unreadOnly}, top=${top}`);
 
   // Build filter
   const filters: string[] = [];
@@ -281,7 +264,6 @@ export async function getEmails(params: {
     const sinceDate = new Date();
     sinceDate.setDate(sinceDate.getDate() - sinceDays);
     filters.push(`receivedDateTime ge ${sinceDate.toISOString()}`);
-    console.log(`[OUTLOOK-GRAPH] ${timestamp} - Filtering since: ${sinceDate.toISOString()}`);
   }
 
   const queryParams = new URLSearchParams({
@@ -295,7 +277,6 @@ export async function getEmails(params: {
   }
 
   const url = `${GRAPH_API_BASE}/me/messages?${queryParams.toString()}`;
-  console.log(`[OUTLOOK-GRAPH] ${timestamp} - Calling: GET ${url.substring(0, 100)}...`);
 
   const response = await fetch(url, {
     headers: {
@@ -304,21 +285,13 @@ export async function getEmails(params: {
     },
   });
 
-  console.log(`[OUTLOOK-GRAPH] ${timestamp} - Response status: ${response.status} ${response.statusText}`);
-
   if (!response.ok) {
     const error = await response.json();
-    console.error(`[OUTLOOK-GRAPH] ${timestamp} - ERROR: Failed to fetch emails. Status: ${response.status}, Error:`, error);
+    console.error('[OUTLOOK-GRAPH] Failed to fetch emails:', error);
     throw new Error(`Failed to fetch emails: ${error.error?.message || 'Unknown error'}`);
   }
 
   const data: GraphEmailListResponse = await response.json();
-  console.log(`[OUTLOOK-GRAPH] ${timestamp} - SUCCESS: Retrieved ${data.value.length} emails from Graph API`);
-
-  if (data.value.length > 0) {
-    console.log(`[OUTLOOK-GRAPH] ${timestamp} - First email subject: "${data.value[0].subject?.substring(0, 50)}..."`);
-  }
-
   return data.value;
 }
 

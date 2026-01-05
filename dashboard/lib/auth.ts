@@ -25,7 +25,6 @@ type AuthenticatedHandler = (
  * ```typescript
  * async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
  *   // req.userId, req.clientId, req.userEmail are available
- *   console.log(`User ${req.userId} with client ${req.clientId}`);
  * }
  * export default withAuth(handler);
  * ```
@@ -33,48 +32,35 @@ type AuthenticatedHandler = (
 export function withAuth(handler: AuthenticatedHandler): NextApiHandler {
   return async (req: NextApiRequest, res: NextApiResponse) => {
     const timestamp = new Date().toISOString();
-    const endpoint = req.url || 'unknown';
-
-    console.log(`[AUTH] ${timestamp} - withAuth middleware invoked for ${req.method} ${endpoint}`);
 
     try {
       const supabase = getSupabaseServerClient(req, res);
 
       // Get the current user from the session
-      console.log(`[AUTH] ${timestamp} - Fetching user from session...`);
       const {
         data: { user },
         error: authError,
       } = await supabase.auth.getUser();
 
       if (authError || !user) {
-        console.log(`[AUTH] ${timestamp} - No authenticated user found. AuthError: ${authError?.message || 'none'}`);
         return res.status(401).json({
           error: 'Unauthorized',
           message: 'Please sign in to access this resource',
         });
       }
 
-      console.log(`[AUTH] ${timestamp} - User authenticated: ${user.id} (${user.email})`);
-
       // Get the client_id for this user using service client (bypass RLS for lookup)
       const serviceClient = getSupabaseServiceClient();
 
       // Primary lookup: by auth_user_id (linked via signup trigger)
-      console.log(`[AUTH] ${timestamp} - Looking up client by auth_user_id: ${user.id}`);
       let { data: client, error: clientError } = await serviceClient
         .from('clients')
         .select('id')
         .eq('auth_user_id', user.id)
         .single();
 
-      if (client) {
-        console.log(`[AUTH] ${timestamp} - Client found by auth_user_id: ${client.id}`);
-      }
-
       // Fallback: lookup by email if auth_user_id not found (pre-migration data)
       if (clientError || !client) {
-        console.log(`[AUTH] ${timestamp} - Client not found by auth_user_id (error: ${clientError?.message || 'no match'}), trying email lookup...`);
         const emailResult = await serviceClient
           .from('clients')
           .select('id')
@@ -84,16 +70,12 @@ export function withAuth(handler: AuthenticatedHandler): NextApiHandler {
         if (emailResult.data) {
           client = emailResult.data;
           clientError = null;
-          console.log(`[AUTH] ${timestamp} - Client found by email: ${client.id}`);
 
           // Link this client to the auth user for future lookups
           await serviceClient
             .from('clients')
             .update({ auth_user_id: user.id })
             .eq('id', client.id);
-          console.log(`[AUTH] ${timestamp} - Linked client ${client.id} to auth user ${user.id}`);
-        } else {
-          console.log(`[AUTH] ${timestamp} - Client not found by email either (error: ${emailResult.error?.message || 'no match'})`);
         }
       }
 
@@ -114,8 +96,6 @@ export function withAuth(handler: AuthenticatedHandler): NextApiHandler {
       authenticatedReq.userId = user.id;
       authenticatedReq.clientId = client.id;
       authenticatedReq.userEmail = user.email || '';
-
-      console.log(`[AUTH] ${timestamp} - Authentication successful. User: ${user.id}, Client: ${client.id}, Email: ${user.email}`);
 
       // Call the handler with the authenticated request
       return handler(authenticatedReq, res);

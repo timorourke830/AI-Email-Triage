@@ -27,9 +27,6 @@ export interface FetchResult {
  * Get email configuration for a client
  */
 export async function getClientEmailConfig(clientId: string): Promise<ClientEmailConfig | null> {
-  const timestamp = new Date().toISOString();
-  console.log(`[FETCH] ${timestamp} - Getting email config for client: ${clientId}`);
-
   const supabase = getSupabaseServiceClient();
 
   const { data, error } = await supabase
@@ -39,25 +36,15 @@ export async function getClientEmailConfig(clientId: string): Promise<ClientEmai
     .single();
 
   if (error || !data) {
-    console.log(`[FETCH] ${timestamp} - No email config found for client ${clientId}. Error: ${error?.message || 'no data'}`);
     return null;
   }
 
-  const config = {
+  return {
     email_address: data.email_address || '',
     email_provider: data.email_provider || 'gmail',
     has_gmail_password: !!data.email_password_encrypted,
     has_microsoft_oauth: !!data.microsoft_refresh_token_encrypted,
   };
-
-  console.log(`[FETCH] ${timestamp} - Email config for client ${clientId}:`, {
-    email_address: config.email_address || '(not set)',
-    email_provider: config.email_provider,
-    has_gmail_password: config.has_gmail_password,
-    has_microsoft_oauth: config.has_microsoft_oauth,
-  });
-
-  return config;
 }
 
 /**
@@ -87,10 +74,6 @@ async function fetchViaGmail(
   unreadOnly: boolean,
   maxEmails: number
 ): Promise<FetchResult> {
-  const timestamp = new Date().toISOString();
-  console.log(`[GMAIL] ${timestamp} - Starting Gmail IMAP fetch for client ${clientId}`);
-  console.log(`[GMAIL] ${timestamp} - Parameters: sinceDays=${sinceDays}, unreadOnly=${unreadOnly}, maxEmails=${maxEmails}`);
-
   const supabase = getSupabaseServiceClient();
 
   const { data, error } = await supabase
@@ -100,7 +83,7 @@ async function fetchViaGmail(
     .single();
 
   if (error || !data) {
-    console.error(`[GMAIL] ${timestamp} - ERROR: Failed to get Gmail credentials. Error: ${error?.message || 'no data'}`);
+    console.error('[GMAIL] Failed to get Gmail credentials:', error?.message);
     return {
       success: false,
       emails: [],
@@ -110,7 +93,7 @@ async function fetchViaGmail(
   }
 
   if (!data.email_address || !data.email_password_encrypted) {
-    console.error(`[GMAIL] ${timestamp} - ERROR: Gmail credentials incomplete. email_address=${!!data.email_address}, password=${!!data.email_password_encrypted}`);
+    console.error('[GMAIL] Gmail credentials incomplete');
     return {
       success: false,
       emails: [],
@@ -118,8 +101,6 @@ async function fetchViaGmail(
       provider: 'gmail',
     };
   }
-
-  console.log(`[GMAIL] ${timestamp} - Credentials found for ${data.email_address}. Attempting IMAP connection...`);
 
   try {
     const emails = await fetchGmailEmails({
@@ -132,7 +113,6 @@ async function fetchViaGmail(
       maxEmails,
     });
 
-    console.log(`[GMAIL] ${timestamp} - SUCCESS: Fetched ${emails.length} emails from Gmail`);
     return {
       success: true,
       emails,
@@ -140,10 +120,7 @@ async function fetchViaGmail(
     };
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : 'Failed to fetch Gmail emails';
-    console.error(`[GMAIL] ${timestamp} - ERROR: Gmail fetch failed:`, errorMsg);
-    if (err instanceof Error && err.stack) {
-      console.error(`[GMAIL] ${timestamp} - Stack trace:`, err.stack);
-    }
+    console.error('[GMAIL] Fetch failed:', errorMsg);
     return {
       success: false,
       emails: [],
@@ -162,24 +139,15 @@ async function fetchViaOutlook(
   unreadOnly: boolean,
   maxEmails: number
 ): Promise<FetchResult> {
-  const timestamp = new Date().toISOString();
-  console.log(`[OUTLOOK] ${timestamp} - Starting Microsoft Graph fetch for client ${clientId}`);
-  console.log(`[OUTLOOK] ${timestamp} - Parameters: sinceDays=${sinceDays}, unreadOnly=${unreadOnly}, maxEmails=${maxEmails}`);
-
   try {
-    console.log(`[OUTLOOK] ${timestamp} - Getting valid access token...`);
     const accessToken = await MicrosoftGraph.getValidAccessToken(clientId);
-    console.log(`[OUTLOOK] ${timestamp} - Access token obtained (length: ${accessToken.length})`);
 
-    console.log(`[OUTLOOK] ${timestamp} - Calling Graph API to fetch emails...`);
     const graphEmails = await MicrosoftGraph.getEmails({
       accessToken,
       sinceDays,
       unreadOnly,
       top: maxEmails,
     });
-
-    console.log(`[OUTLOOK] ${timestamp} - Graph API returned ${graphEmails.length} emails`);
 
     // Convert Graph emails to normalized format
     const emails: NormalizedEmail[] = graphEmails.map((email) => ({
@@ -193,7 +161,6 @@ async function fetchViaOutlook(
       received_at: new Date(email.receivedDateTime),
     }));
 
-    console.log(`[OUTLOOK] ${timestamp} - SUCCESS: Normalized ${emails.length} emails from Outlook`);
     return {
       success: true,
       emails,
@@ -201,10 +168,7 @@ async function fetchViaOutlook(
     };
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : 'Failed to fetch Outlook emails';
-    console.error(`[OUTLOOK] ${timestamp} - ERROR: Outlook fetch failed:`, errorMsg);
-    if (err instanceof Error && err.stack) {
-      console.error(`[OUTLOOK] ${timestamp} - Stack trace:`, err.stack);
-    }
+    console.error('[OUTLOOK] Fetch failed:', errorMsg);
     return {
       success: false,
       emails: [],
@@ -224,15 +188,11 @@ export async function fetchEmails(params: {
   maxEmails?: number;
 }): Promise<FetchResult> {
   const { clientId, sinceDays = 7, unreadOnly = false, maxEmails = 50 } = params;
-  const timestamp = new Date().toISOString();
-
-  console.log(`[FETCH] ${timestamp} - fetchEmails called for client ${clientId}`);
-  console.log(`[FETCH] ${timestamp} - Parameters: sinceDays=${sinceDays}, unreadOnly=${unreadOnly}, maxEmails=${maxEmails}`);
 
   const config = await getClientEmailConfig(clientId);
 
   if (!config) {
-    console.error(`[FETCH] ${timestamp} - ERROR: No email configuration found for client ${clientId}`);
+    console.error('[FETCH] No email configuration found for client:', clientId);
     return {
       success: false,
       emails: [],
@@ -241,22 +201,18 @@ export async function fetchEmails(params: {
     };
   }
 
-  console.log(`[FETCH] ${timestamp} - Routing to provider: ${config.email_provider}`);
-
   // Route to appropriate provider
   if (config.email_provider === 'outlook' && config.has_microsoft_oauth) {
-    console.log(`[FETCH] ${timestamp} - Using Microsoft Graph API (Outlook OAuth configured)`);
     return fetchViaOutlook(clientId, sinceDays, unreadOnly, maxEmails);
   }
 
   if (config.email_provider === 'gmail' && config.has_gmail_password) {
-    console.log(`[FETCH] ${timestamp} - Using Gmail IMAP (app password configured)`);
     return fetchViaGmail(clientId, sinceDays, unreadOnly, maxEmails);
   }
 
   // No valid credentials found
   const providerName = config.email_provider === 'outlook' ? 'Microsoft Outlook' : 'Gmail';
-  console.error(`[FETCH] ${timestamp} - ERROR: ${providerName} credentials not configured. Provider: ${config.email_provider}, OAuth: ${config.has_microsoft_oauth}, Password: ${config.has_gmail_password}`);
+  console.error('[FETCH] Credentials not configured for provider:', config.email_provider);
   return {
     success: false,
     emails: [],

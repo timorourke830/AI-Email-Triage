@@ -25,7 +25,23 @@
       "WebFetch(domain:supabase.com)",
       "WebFetch(domain:github.com)",
       "Bash(ls:*)",
-      "Bash(npx vercel:*)"
+      "Bash(npx vercel:*)",
+      "Bash(pnpm --dir \"C:\\\\Dev\\\\ai-email-triage\\\\dashboard\" build:*)",
+      "Bash(git -C \"C:\\\\Dev\\\\ai-email-triage\" status)",
+      "Bash(git -C \"C:\\\\Dev\\\\ai-email-triage\" add dashboard/components/EmailDetail.tsx dashboard/pages/api/auth/callback.ts dashboard/pages/api/auth/init-client.ts dashboard/pages/api/emails/process.ts dashboard/pages/auth/reset-password.tsx dashboard/pages/emails/[id].tsx dashboard/pages/setup.tsx)",
+      "Bash(git -C \"C:\\\\Dev\\\\ai-email-triage\" commit -m \"$\\(cat <<''EOF''\nClean up for beta release: remove debug UI and logs\n\n- Remove debug console.log statements from production code\n- Remove debug yellow box and status text from EmailDetail\n- Process with AI button now only shows for pending emails\n- User-friendly error messages in handleProcess\n- Streamlined process API with minimal logging\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git -C \"C:\\\\Dev\\\\ai-email-triage\" push origin main)",
+      "Bash(git -C \"C:\\\\Dev\\\\ai-email-triage\" tag v1.0-beta-working)",
+      "Bash(git -C \"C:\\\\Dev\\\\ai-email-triage\" push origin v1.0-beta-working)",
+      "Bash(git -C \"C:\\\\Dev\\\\ai-email-triage\" add dashboard/components/EmailDetail.tsx dashboard/pages/index.tsx dashboard/pages/api/dashboard/stats.ts)",
+      "Bash(git -C \"C:\\\\Dev\\\\ai-email-triage\" commit -m \"$\\(cat <<''EOF''\nAdd dashboard overview and edit draft features\n\nFeature 1: Dashboard Overview\n- Add /api/dashboard/stats endpoint for efficient count queries\n- Display summary cards \\(Total, Pending, Awaiting Approval, Sent\\)\n- Clickable Pending and Awaiting Approval cards to filter list\n- Classification breakdown showing counts by category\n\nFeature 2: Edit Draft Before Sending\n- Add Save and Cancel buttons when editing draft\n- Show \"Edited\" badge after saving changes\n- Display saved edits in preview\n- Button changes to \"Send Edited Reply\" after editing\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git -C \"C:\\\\Dev\\\\ai-email-triage\" add dashboard/lib/email-fetcher.ts dashboard/lib/gmail-imap.ts dashboard/lib/microsoft-graph.ts dashboard/pages/index.tsx)",
+      "Bash(git -C \"C:\\\\Dev\\\\ai-email-triage\" commit -m \"$\\(cat <<''EOF''\nFetch all emails, not just unread\n\nChanged default from unreadOnly=true to unreadOnly=false in:\n- email-fetcher.ts\n- gmail-imap.ts  \n- microsoft-graph.ts\n- index.tsx \\(removed unreadOnly param from fetch call\\)\n\nNow fetches both read and unread emails within the selected timeframe.\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git -C \"C:\\\\Dev\\\\ai-email-triage\" log --oneline -3)",
+      "Bash(git -C \"C:\\\\Dev\\\\ai-email-triage\" add dashboard/pages/index.tsx)",
+      "Bash(git -C \"C:\\\\Dev\\\\ai-email-triage\" commit -m \"$\\(cat <<''EOF''\nExplicitly pass unreadOnly=false to fetch API\n\nForce unreadOnly=false in the API call to ensure read emails\nare fetched regardless of any cached serverless function defaults.\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git -C \"C:\\\\Dev\\\\ai-email-triage\" add dashboard/components/EmailDetail.tsx)",
+      "Bash(git -C \"C:\\\\Dev\\\\ai-email-triage\" commit -m \"$\\(cat <<''EOF''\nMake Edit Draft button more prominent\n\n- Moved button below draft content \\(full-width\\)\n- Blue background with white text\n- Larger padding and font size\n- Clear label: \"Edit Draft Before Sending\"\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
     ]
   }
 }

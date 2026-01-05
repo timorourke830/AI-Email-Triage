@@ -79,22 +79,18 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   }
 
   // Test Gmail IMAP connection using imapflow
-  console.log(`[test-connection] Testing Gmail IMAP for ${email_address}`);
   const imapResult = await testGmailConnection({
     email: email_address,
     appPassword: email_password,
   });
 
   if (!imapResult.success) {
-    console.log(`[test-connection] Gmail IMAP failed: ${imapResult.error}`);
     return res.status(400).json({
       success: false,
       error: imapResult.error || 'IMAP connection failed',
       type: 'imap',
     });
   }
-
-  console.log(`[test-connection] Gmail IMAP successful, testing SMTP...`);
 
   // Test SMTP connection
   const smtpConfig = SMTP_CONFIGS[email_provider];
@@ -105,7 +101,6 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   );
 
   if (!smtpResult.success) {
-    console.log(`[test-connection] Gmail SMTP failed: ${smtpResult.error}`);
     return res.status(400).json({
       success: false,
       error: smtpResult.error || 'SMTP connection failed',
@@ -113,7 +108,6 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     });
   }
 
-  console.log(`[test-connection] All tests passed for ${email_address}`);
   return res.status(200).json({ success: true });
 }
 
