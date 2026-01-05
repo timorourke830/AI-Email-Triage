@@ -223,7 +223,7 @@ export async function fetchEmails(params: {
   unreadOnly?: boolean;
   maxEmails?: number;
 }): Promise<FetchResult> {
-  const { clientId, sinceDays = 7, unreadOnly = true, maxEmails = 50 } = params;
+  const { clientId, sinceDays = 7, unreadOnly = false, maxEmails = 50 } = params;
   const timestamp = new Date().toISOString();
 
   console.log(`[FETCH] ${timestamp} - fetchEmails called for client ${clientId}`);

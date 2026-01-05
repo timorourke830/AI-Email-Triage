@@ -111,7 +111,7 @@ export default function Home() {
       const fetchRes = await fetch('/api/emails/fetch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sinceDays: 7, unreadOnly: true }),
+        body: JSON.stringify({ sinceDays: 7 }),
       });
 
       const fetchResult: FetchResult = await fetchRes.json();

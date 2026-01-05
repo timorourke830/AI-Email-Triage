@@ -59,7 +59,7 @@ export async function fetchGmailEmails(params: {
   unreadOnly?: boolean;
   maxEmails?: number;
 }): Promise<NormalizedEmail[]> {
-  const { credentials, sinceDays = 7, unreadOnly = true, maxEmails = 50 } = params;
+  const { credentials, sinceDays = 7, unreadOnly = false, maxEmails = 50 } = params;
   const timestamp = new Date().toISOString();
 
   console.log(`[GMAIL-IMAP] ${timestamp} - Starting IMAP connection to ${GMAIL_IMAP_HOST}:${GMAIL_IMAP_PORT}`);

@@ -264,7 +264,7 @@ export async function getEmails(params: {
   unreadOnly?: boolean;
   top?: number;
 }): Promise<GraphEmail[]> {
-  const { accessToken, sinceDays = 7, unreadOnly = true, top = 50 } = params;
+  const { accessToken, sinceDays = 7, unreadOnly = false, top = 50 } = params;
   const timestamp = new Date().toISOString();
 
   console.log(`[OUTLOOK-GRAPH] ${timestamp} - Fetching emails from Graph API`);
