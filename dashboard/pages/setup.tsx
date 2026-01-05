@@ -90,11 +90,33 @@ export default function SetupPage() {
       // Clear query params
       router.replace('/setup', undefined, { shallow: true });
     } else if (oauth === 'failed' && oauthError) {
-      setEmailProvider('outlook');
-      setConnectionError(String(oauthError));
-      setConnectionTested(false);
-      // Clear query params
-      router.replace('/setup', undefined, { shallow: true });
+      // Only show error if we don't already have a verified connection
+      // This handles the case where OAuth fails but previous credentials are still valid
+      const checkExistingConnection = async () => {
+        try {
+          const { settings } = await getSettings();
+          if (settings?.email_credentials_verified && settings?.email_address) {
+            // Connection is already verified - don't show the error
+            setEmailProvider('outlook');
+            setConnectionTested(true);
+            setConnectedEmail(settings.email_address);
+            setConnectionError(null);
+          } else {
+            // No existing connection - show the error
+            setEmailProvider('outlook');
+            setConnectionError(String(oauthError));
+            setConnectionTested(false);
+          }
+        } catch {
+          // Couldn't check settings - show the error
+          setEmailProvider('outlook');
+          setConnectionError(String(oauthError));
+          setConnectionTested(false);
+        }
+        // Clear query params
+        router.replace('/setup', undefined, { shallow: true });
+      };
+      checkExistingConnection();
     }
   }, [router.query]);
 
