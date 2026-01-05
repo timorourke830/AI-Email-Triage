@@ -179,14 +179,6 @@ export default function EmailDetail({
             {hasSavedEdits && !isEditing && (
               <span style={styles.editedBadge}>Edited</span>
             )}
-            {canApprove && !isEditing && (
-              <button
-                style={styles.editButton}
-                onClick={() => setIsEditing(true)}
-              >
-                {hasSavedEdits ? 'Edit Again' : 'Edit'}
-              </button>
-            )}
           </h2>
           {isEditing ? (
             <div>
@@ -201,7 +193,7 @@ export default function EmailDetail({
                   style={styles.saveButton}
                   onClick={handleSaveEdits}
                 >
-                  Save
+                  Save Changes
                 </button>
                 <button
                   style={styles.cancelButton}
@@ -212,9 +204,19 @@ export default function EmailDetail({
               </div>
             </div>
           ) : (
-            <div style={styles.emailBody}>
-              {hasSavedEdits ? editedReply : email.draft_reply}
-            </div>
+            <>
+              <div style={styles.emailBody}>
+                {hasSavedEdits ? editedReply : email.draft_reply}
+              </div>
+              {canApprove && (
+                <button
+                  style={styles.editButton}
+                  onClick={() => setIsEditing(true)}
+                >
+                  {hasSavedEdits ? 'Edit Draft Again' : 'Edit Draft Before Sending'}
+                </button>
+              )}
+            </>
           )}
         </div>
       )}
@@ -378,12 +380,16 @@ const styles: Record<string, React.CSSProperties> = {
     fontFamily: 'inherit',
   },
   editButton: {
-    padding: '4px 12px',
-    fontSize: '12px',
-    backgroundColor: '#e5e7eb',
+    width: '100%',
+    padding: '12px 24px',
+    fontSize: '14px',
+    fontWeight: 500,
+    backgroundColor: '#3b82f6',
+    color: 'white',
     border: 'none',
-    borderRadius: '4px',
+    borderRadius: '6px',
     cursor: 'pointer',
+    marginTop: '12px',
   },
   editActions: {
     marginTop: '8px',
