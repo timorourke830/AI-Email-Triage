@@ -49,8 +49,13 @@ export default async function handler(
     if (stateCookie) {
       const [cookieState, cookieHash] = stateCookie.split(':');
 
+      if (!process.env.ENCRYPTION_KEY) {
+        console.error('ENCRYPTION_KEY environment variable is not set');
+        return res.redirect('/setup?error=Server configuration error&oauth=failed');
+      }
+
       const expectedHash = crypto
-        .createHmac('sha256', process.env.ENCRYPTION_KEY || 'fallback-key')
+        .createHmac('sha256', process.env.ENCRYPTION_KEY)
         .update(cookieState)
         .digest('hex');
 

@@ -25,6 +25,15 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     });
   }
 
+  // Validate email format
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email_address) || email_address.length > 254) {
+    return res.status(400).json({
+      error: 'Invalid email format',
+      message: 'Please enter a valid email address',
+    });
+  }
+
   if (!['gmail', 'outlook'].includes(email_provider)) {
     return res.status(400).json({
       error: 'Invalid provider',

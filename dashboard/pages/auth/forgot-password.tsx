@@ -17,8 +17,11 @@ export default function ForgotPasswordPage() {
     try {
       const supabase = getSupabaseBrowserClient();
 
+      // Use current origin for redirect URL (works in all environments)
+      const redirectUrl = `${window.location.origin}/api/auth/callback?type=recovery`;
+
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: 'https://ai-email-triage-dqh9.vercel.app/api/auth/callback?type=recovery',
+        redirectTo: redirectUrl,
       });
 
       if (resetError) {

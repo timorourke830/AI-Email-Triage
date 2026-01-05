@@ -109,14 +109,23 @@ export default async function handler(
     });
 
     // Store state in a cookie for verification (signed with a hash)
+    if (!process.env.ENCRYPTION_KEY) {
+      console.error('ENCRYPTION_KEY environment variable is not set');
+      return res.status(500).json({
+        error: 'Server Configuration Error',
+        message: 'Server is not properly configured. Please contact support.',
+      });
+    }
+
     const stateHash = crypto
-      .createHmac('sha256', process.env.ENCRYPTION_KEY || 'fallback-key')
+      .createHmac('sha256', process.env.ENCRYPTION_KEY)
       .update(state)
       .digest('hex');
 
+    const isProduction = process.env.NODE_ENV === 'production';
     res.setHeader(
       'Set-Cookie',
-      `ms_oauth_state=${state}:${stateHash}; Path=/; HttpOnly; SameSite=Lax; Max-Age=600`
+      `ms_oauth_state=${state}:${stateHash}; Path=/; HttpOnly; SameSite=Lax; Max-Age=600${isProduction ? '; Secure' : ''}`
     );
 
     return res.status(200).json({

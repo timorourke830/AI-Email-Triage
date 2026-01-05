@@ -13,9 +13,16 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     const supabase = getSupabaseServiceClient();
     const { status, page = '1', limit = '20' } = req.query;
 
-    const pageNum = parseInt(page as string, 10);
-    const limitNum = Math.min(parseInt(limit as string, 10), 100);
+    // Validate pagination parameters
+    const pageNum = Math.max(1, parseInt(page as string, 10) || 1);
+    const limitNum = Math.min(Math.max(1, parseInt(limit as string, 10) || 20), 100);
     const offset = (pageNum - 1) * limitNum;
+
+    // Validate status filter against allowed enum values
+    const validStatuses = ['pending', 'processing', 'awaiting_approval', 'sent', 'rejected'];
+    if (status && typeof status === 'string' && !validStatuses.includes(status)) {
+      return res.status(400).json({ error: 'Invalid status filter' });
+    }
 
     let query = supabase
       .from('emails')
