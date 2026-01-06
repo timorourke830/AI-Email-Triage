@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { getSettings, updateSettings, completeSetup, triggerIngest } from '@/lib/api';
+import { getSupabaseBrowserClient } from '@/lib/supabase';
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -77,6 +78,21 @@ export default function SetupPage() {
     reply_tone: 'neutral',
     signature: '',
   });
+
+  // Sign out state
+  const [signingOut, setSigningOut] = useState(false);
+
+  // Sign out handler
+  const handleSignOut = async () => {
+    setSigningOut(true);
+    try {
+      const supabase = getSupabaseBrowserClient();
+      await supabase.auth.signOut();
+      router.push('/auth/signin');
+    } catch {
+      setSigningOut(false);
+    }
+  };
 
   // Handle OAuth callback from Microsoft
   useEffect(() => {
@@ -692,6 +708,18 @@ export default function SetupPage() {
               {saving ? 'Saving...' : step === 6 ? 'Complete Setup' : 'Next'}
             </button>
           </div>
+
+          {/* Sign out link */}
+          <div style={styles.signOutContainer}>
+            <button
+              type="button"
+              style={styles.signOutLink}
+              onClick={handleSignOut}
+              disabled={signingOut}
+            >
+              {signingOut ? 'Signing out...' : 'Sign out'}
+            </button>
+          </div>
         </div>
       </div>
     </>
@@ -984,5 +1012,19 @@ const styles: Record<string, React.CSSProperties> = {
   nextButtonDisabled: {
     backgroundColor: '#9ca3af',
     cursor: 'not-allowed',
+  },
+  signOutContainer: {
+    marginTop: '24px',
+    textAlign: 'center' as const,
+    borderTop: '1px solid #e5e7eb',
+    paddingTop: '20px',
+  },
+  signOutLink: {
+    background: 'none',
+    border: 'none',
+    color: '#6b7280',
+    fontSize: '14px',
+    cursor: 'pointer',
+    padding: '4px 8px',
   },
 };
