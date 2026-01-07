@@ -1,8 +1,21 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
+import {
+  Mail,
+  Check,
+  ChevronRight,
+  ChevronLeft,
+  LogOut,
+  AlertCircle,
+  Loader2,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { getSettings, updateSettings, completeSetup, triggerIngest } from '@/lib/api';
 import { getSupabaseBrowserClient } from '@/lib/supabase';
+import { Button } from '@/components/ui/Button';
+import { Input, Textarea } from '@/components/ui/Input';
+import { Card } from '@/components/ui/Card';
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -41,6 +54,116 @@ const EMAIL_TYPE_OPTIONS = [
   { value: 'billing', label: 'Billing questions' },
 ];
 
+// Step indicator component
+function StepIndicator({ currentStep, totalSteps }: { currentStep: number; totalSteps: number }) {
+  return (
+    <div className="flex items-center justify-center gap-2 mb-6">
+      {Array.from({ length: totalSteps }, (_, i) => (
+        <div
+          key={i}
+          className={cn(
+            'w-2.5 h-2.5 rounded-full transition-all duration-300',
+            i + 1 <= currentStep
+              ? 'bg-primary-600'
+              : 'bg-slate-200 dark:bg-slate-700'
+          )}
+        />
+      ))}
+    </div>
+  );
+}
+
+// Radio option component
+function RadioOption({
+  selected,
+  onClick,
+  children,
+  description,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+  description?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'w-full p-4 rounded-lg border-2 text-left transition-all duration-200',
+        selected
+          ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
+          : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+      )}
+    >
+      <div className="flex items-start gap-3">
+        <div className={cn(
+          'mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0',
+          selected
+            ? 'border-primary-600 bg-primary-600'
+            : 'border-slate-300 dark:border-slate-600'
+        )}>
+          {selected && <Check className="w-3 h-3 text-white" />}
+        </div>
+        <div>
+          <p className={cn(
+            'font-medium',
+            selected ? 'text-primary-700 dark:text-primary-300' : 'text-slate-700 dark:text-slate-300'
+          )}>
+            {children}
+          </p>
+          {description && (
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+              {description}
+            </p>
+          )}
+        </div>
+      </div>
+    </button>
+  );
+}
+
+// Checkbox option component
+function CheckboxOption({
+  checked,
+  onChange,
+  children,
+}: {
+  checked: boolean;
+  onChange: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onChange}
+      className={cn(
+        'w-full p-4 rounded-lg border-2 text-left transition-all duration-200',
+        checked
+          ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
+          : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+      )}
+    >
+      <div className="flex items-center gap-3">
+        <div className={cn(
+          'w-5 h-5 rounded border-2 flex items-center justify-center shrink-0',
+          checked
+            ? 'border-primary-600 bg-primary-600'
+            : 'border-slate-300 dark:border-slate-600'
+        )}>
+          {checked && <Check className="w-3 h-3 text-white" />}
+        </div>
+        <span className={cn(
+          'font-medium',
+          checked ? 'text-primary-700 dark:text-primary-300' : 'text-slate-700 dark:text-slate-300'
+        )}>
+          {children}
+        </span>
+      </div>
+    </button>
+  );
+}
+
 export default function SetupPage() {
   const router = useRouter();
   const [step, setStep] = useState<Step>(1);
@@ -51,13 +174,13 @@ export default function SetupPage() {
   // Email provider selection
   const [emailProvider, setEmailProvider] = useState<'gmail' | 'outlook'>('gmail');
 
-  // Gmail credentials state (for app password flow)
+  // Gmail credentials state
   const [gmailCredentials, setGmailCredentials] = useState<GmailCredentials>({
     email_address: '',
     email_password: '',
   });
 
-  // Microsoft credentials state (for OAuth flow)
+  // Microsoft credentials state
   const [microsoftCredentials, setMicrosoftCredentials] = useState<MicrosoftCredentials>({
     microsoft_client_id: '',
     microsoft_client_secret: '',
@@ -79,19 +202,11 @@ export default function SetupPage() {
     signature: '',
   });
 
-  // Sign out state
-  const [signingOut, setSigningOut] = useState(false);
-
   // Sign out handler
   const handleSignOut = async () => {
-    setSigningOut(true);
-    try {
-      const supabase = getSupabaseBrowserClient();
-      await supabase.auth.signOut();
-      router.push('/auth/signin');
-    } catch {
-      setSigningOut(false);
-    }
+    const supabase = getSupabaseBrowserClient();
+    await supabase.auth.signOut();
+    router.push('/auth/signin');
   };
 
   // Handle OAuth callback from Microsoft
@@ -103,40 +218,33 @@ export default function SetupPage() {
       setConnectionTested(true);
       setConnectedEmail(String(email));
       setConnectionError(null);
-      // Clear query params
       router.replace('/setup', undefined, { shallow: true });
     } else if (oauth === 'failed' && oauthError) {
-      // Only show error if we don't already have a verified connection
-      // This handles the case where OAuth fails but previous credentials are still valid
       const checkExistingConnection = async () => {
         try {
           const { settings } = await getSettings();
           if (settings?.email_credentials_verified && settings?.email_address) {
-            // Connection is already verified - don't show the error
             setEmailProvider('outlook');
             setConnectionTested(true);
             setConnectedEmail(settings.email_address);
             setConnectionError(null);
           } else {
-            // No existing connection - show the error
             setEmailProvider('outlook');
             setConnectionError(String(oauthError));
             setConnectionTested(false);
           }
         } catch {
-          // Couldn't check settings - show the error
           setEmailProvider('outlook');
           setConnectionError(String(oauthError));
           setConnectionTested(false);
         }
-        // Clear query params
         router.replace('/setup', undefined, { shallow: true });
       };
       checkExistingConnection();
     }
   }, [router.query]);
 
-  // Check if setup already completed (only on initial mount)
+  // Check if setup already completed
   useEffect(() => {
     let isMounted = true;
 
@@ -147,7 +255,6 @@ export default function SetupPage() {
         if (settings?.setup_completed) {
           router.replace('/');
         } else {
-          // Pre-fill email if already connected
           if (settings?.email_address) {
             setConnectedEmail(settings.email_address);
             if (settings.email_provider === 'outlook') {
@@ -163,14 +270,12 @@ export default function SetupPage() {
         }
       } catch {
         if (!isMounted) return;
-        // Client may not exist yet - try to create it
         try {
           const initRes = await fetch('/api/auth/init-client', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
           });
           if (initRes.ok) {
-            // Client created, try getSettings again
             try {
               const { settings } = await getSettings();
               if (!isMounted) return;
@@ -180,7 +285,6 @@ export default function SetupPage() {
                 setLoading(false);
               }
             } catch {
-              // Still failing, show error
               if (isMounted) {
                 setError('Client lookup error: Please try signing out and back in');
                 setLoading(false);
@@ -207,7 +311,7 @@ export default function SetupPage() {
     };
   }, []);
 
-  // Test Gmail connection (IMAP/SMTP)
+  // Test Gmail connection
   const testGmailConnection = async () => {
     setTestingConnection(true);
     setConnectionError(null);
@@ -242,7 +346,7 @@ export default function SetupPage() {
     }
   };
 
-  // Connect Microsoft account (OAuth)
+  // Connect Microsoft account
   const connectMicrosoftAccount = async () => {
     setConnectingMicrosoft(true);
     setConnectionError(null);
@@ -265,7 +369,6 @@ export default function SetupPage() {
         return;
       }
 
-      // Redirect to Microsoft OAuth
       window.location.href = result.auth_url;
     } catch (err) {
       setConnectionError(err instanceof Error ? err.message : 'Failed to connect');
@@ -293,7 +396,6 @@ export default function SetupPage() {
 
   const handleNext = async () => {
     if (step < 6) {
-      // For step 1, require connection test
       if (step === 1 && !connectionTested) {
         setError('Please connect your email account before continuing');
         return;
@@ -301,11 +403,9 @@ export default function SetupPage() {
       setStep((step + 1) as Step);
       setError(null);
     } else {
-      // Final step - save all settings and complete
       setSaving(true);
       setError(null);
       try {
-        // Only save Gmail credentials if using Gmail (Outlook creds saved during OAuth)
         if (emailProvider === 'gmail') {
           await saveGmailCredentials();
         }
@@ -348,40 +448,52 @@ export default function SetupPage() {
     switch (step) {
       case 1:
         return (
-          <div style={styles.stepContent}>
+          <div className="space-y-6">
             {/* Email Provider Selection */}
-            <div style={styles.field}>
-              <label style={styles.label}>Email Provider</label>
-              <div style={styles.providerButtons}>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
+                Email Provider
+              </label>
+              <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
-                  style={{
-                    ...styles.providerButton,
-                    ...(emailProvider === 'gmail' ? styles.providerButtonActive : {}),
-                  }}
                   onClick={() => {
                     setEmailProvider('gmail');
                     setConnectionTested(false);
                     setConnectedEmail(null);
                     setConnectionError(null);
                   }}
+                  className={cn(
+                    'flex items-center justify-center gap-2 p-4 rounded-lg border-2 font-medium transition-all',
+                    emailProvider === 'gmail'
+                      ? 'border-primary-500 bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-300'
+                      : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300'
+                  )}
                 >
+                  <svg className="w-5 h-5" viewBox="0 0 24 24">
+                    <path fill="currentColor" d="M20.37 5.03L12 11l-8.37-5.97A1.5 1.5 0 0 1 5 3h14a1.5 1.5 0 0 1 1.37 2.03zM12 13L3 6.5V18a1.5 1.5 0 0 0 1.5 1.5h15A1.5 1.5 0 0 0 21 18V6.5L12 13z" />
+                  </svg>
                   Gmail
                 </button>
                 <button
                   type="button"
-                  style={{
-                    ...styles.providerButton,
-                    ...(emailProvider === 'outlook' ? styles.providerButtonActive : {}),
-                  }}
                   onClick={() => {
                     setEmailProvider('outlook');
                     setConnectionTested(false);
                     setConnectedEmail(null);
                     setConnectionError(null);
                   }}
+                  className={cn(
+                    'flex items-center justify-center gap-2 p-4 rounded-lg border-2 font-medium transition-all',
+                    emailProvider === 'outlook'
+                      ? 'border-primary-500 bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-300'
+                      : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300'
+                  )}
                 >
-                  Outlook / Microsoft 365
+                  <svg className="w-5 h-5" viewBox="0 0 24 24">
+                    <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
+                  </svg>
+                  Outlook / 365
                 </button>
               </div>
             </div>
@@ -389,137 +501,120 @@ export default function SetupPage() {
             {/* Gmail Flow */}
             {emailProvider === 'gmail' && (
               <>
-                <div style={styles.field}>
-                  <label htmlFor="email" style={styles.label}>
-                    Email Address
-                  </label>
-                  <input
-                    id="email"
-                    type="email"
-                    value={gmailCredentials.email_address}
-                    onChange={(e) => {
-                      setGmailCredentials({ ...gmailCredentials, email_address: e.target.value });
-                      setConnectionTested(false);
-                    }}
-                    style={styles.input}
-                    placeholder="you@gmail.com"
-                  />
-                </div>
+                <Input
+                  label="Email Address"
+                  type="email"
+                  value={gmailCredentials.email_address}
+                  onChange={(e) => {
+                    setGmailCredentials({ ...gmailCredentials, email_address: e.target.value });
+                    setConnectionTested(false);
+                  }}
+                  placeholder="you@gmail.com"
+                />
 
-                <div style={styles.field}>
-                  <label htmlFor="password" style={styles.label}>
-                    App Password
-                  </label>
-                  <input
-                    id="password"
-                    type="password"
-                    value={gmailCredentials.email_password}
-                    onChange={(e) => {
-                      setGmailCredentials({ ...gmailCredentials, email_password: e.target.value });
-                      setConnectionTested(false);
-                    }}
-                    style={styles.input}
-                    placeholder="Enter your app password"
-                  />
-                  <p style={styles.hint}>
-                    You need an App Password, not your regular password.{' '}
-                    <a
-                      href="https://myaccount.google.com/apppasswords"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={styles.link}
-                    >
-                      Create one here
-                    </a>
-                    {' '}(requires 2-Step Verification)
-                  </p>
-                </div>
+                <Input
+                  label="App Password"
+                  type="password"
+                  value={gmailCredentials.email_password}
+                  onChange={(e) => {
+                    setGmailCredentials({ ...gmailCredentials, email_password: e.target.value });
+                    setConnectionTested(false);
+                  }}
+                  placeholder="Enter your app password"
+                  hint={
+                    <>
+                      You need an App Password, not your regular password.{' '}
+                      <a
+                        href="https://myaccount.google.com/apppasswords"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary-600 hover:underline"
+                      >
+                        Create one here
+                      </a>{' '}
+                      (requires 2-Step Verification)
+                    </>
+                  }
+                />
 
-                <button
-                  type="button"
-                  style={styles.testButton}
+                <Button
                   onClick={testGmailConnection}
-                  disabled={testingConnection || !gmailCredentials.email_address || !gmailCredentials.email_password}
+                  isLoading={testingConnection}
+                  disabled={!gmailCredentials.email_address || !gmailCredentials.email_password}
+                  variant="success"
+                  className="w-full"
                 >
-                  {testingConnection ? 'Testing...' : 'Test Connection'}
-                </button>
+                  Test Connection
+                </Button>
               </>
             )}
 
-            {/* Outlook/Microsoft Flow */}
+            {/* Outlook Flow */}
             {emailProvider === 'outlook' && (
               <>
-                <div style={styles.oauthInfo}>
-                  <p style={{ margin: 0, fontWeight: 500 }}>
+                <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                  <p className="text-sm font-medium text-blue-800 dark:text-blue-300">
                     Microsoft requires OAuth2 authentication
                   </p>
-                  <p style={{ margin: '8px 0 0 0', fontSize: '13px', color: '#6b7280' }}>
+                  <p className="text-sm text-blue-700 dark:text-blue-400 mt-1">
                     Click the button below to securely connect your Microsoft account.
-                    You&apos;ll be redirected to Microsoft to authorize access.
                   </p>
                 </div>
 
-                {/* Optional: Custom App Registration */}
-                <details style={styles.advancedSection}>
-                  <summary style={styles.advancedSummary}>
+                <details className="group">
+                  <summary className="text-sm text-slate-500 dark:text-slate-400 cursor-pointer hover:text-slate-700 dark:hover:text-slate-300">
                     Advanced: Use your own Azure App Registration
                   </summary>
-                  <div style={styles.advancedContent}>
-                    <p style={styles.advancedHint}>
+                  <div className="mt-4 p-4 rounded-lg bg-slate-50 dark:bg-slate-800/50 space-y-4">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
                       If you have your own Azure App Registration, enter the credentials below.
                       Otherwise, leave blank to use the default app.
                     </p>
-                    <div style={styles.field}>
-                      <label htmlFor="clientId" style={styles.label}>
-                        Client ID (Application ID)
-                      </label>
-                      <input
-                        id="clientId"
-                        type="text"
-                        value={microsoftCredentials.microsoft_client_id}
-                        onChange={(e) =>
-                          setMicrosoftCredentials({ ...microsoftCredentials, microsoft_client_id: e.target.value })
-                        }
-                        style={styles.input}
-                        placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                      />
-                    </div>
-                    <div style={styles.field}>
-                      <label htmlFor="clientSecret" style={styles.label}>
-                        Client Secret
-                      </label>
-                      <input
-                        id="clientSecret"
-                        type="password"
-                        value={microsoftCredentials.microsoft_client_secret}
-                        onChange={(e) =>
-                          setMicrosoftCredentials({ ...microsoftCredentials, microsoft_client_secret: e.target.value })
-                        }
-                        style={styles.input}
-                        placeholder="Enter client secret"
-                      />
-                    </div>
+                    <Input
+                      label="Client ID (Application ID)"
+                      type="text"
+                      value={microsoftCredentials.microsoft_client_id}
+                      onChange={(e) =>
+                        setMicrosoftCredentials({ ...microsoftCredentials, microsoft_client_id: e.target.value })
+                      }
+                      placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                    />
+                    <Input
+                      label="Client Secret"
+                      type="password"
+                      value={microsoftCredentials.microsoft_client_secret}
+                      onChange={(e) =>
+                        setMicrosoftCredentials({ ...microsoftCredentials, microsoft_client_secret: e.target.value })
+                      }
+                      placeholder="Enter client secret"
+                    />
                   </div>
                 </details>
 
-                <button
-                  type="button"
-                  style={styles.microsoftButton}
+                <Button
                   onClick={connectMicrosoftAccount}
-                  disabled={connectingMicrosoft}
+                  isLoading={connectingMicrosoft}
+                  className="w-full bg-[#0078d4] hover:bg-[#106ebe]"
                 >
-                  {connectingMicrosoft ? 'Connecting...' : 'Connect with Microsoft'}
-                </button>
+                  <svg className="w-5 h-5" viewBox="0 0 23 23">
+                    <path fill="currentColor" d="M0 0h11v11H0V0zm12 0h11v11H12V0zM0 12h11v11H0V12zm12 0h11v11H12V12z" />
+                  </svg>
+                  Connect with Microsoft
+                </Button>
               </>
             )}
 
             {/* Connection Status */}
             {connectionError && (
-              <div style={styles.connectionError}>{connectionError}</div>
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400">
+                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                <span className="text-sm">{connectionError}</span>
+              </div>
             )}
             {connectionTested && connectedEmail && (
-              <div style={styles.connectionSuccess}>
-                Connected to {connectedEmail}
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400">
+                <Check className="w-5 h-5" />
+                <span className="text-sm font-medium">Connected to {connectedEmail}</span>
               </div>
             )}
           </div>
@@ -527,114 +622,92 @@ export default function SetupPage() {
 
       case 2:
         return (
-          <div style={styles.stepContent}>
-            <div style={styles.radioGroup}>
-              {[
-                { value: 1, label: 'Last 24 hours' },
-                { value: 7, label: 'Last 7 days' },
-                { value: 30, label: 'Last 30 days' },
-                { value: 90, label: 'Last 90 days' },
-                { value: 0, label: 'All emails' },
-              ].map((option) => (
-                <label key={option.value} style={styles.radioLabel}>
-                  <input
-                    type="radio"
-                    name="ingest_since_days"
-                    value={option.value}
-                    checked={data.ingest_since_days === option.value}
-                    onChange={() => setData({ ...data, ingest_since_days: option.value })}
-                    style={styles.radio}
-                  />
-                  {option.label}
-                </label>
-              ))}
-            </div>
+          <div className="space-y-3">
+            {[
+              { value: 1, label: 'Last 24 hours' },
+              { value: 7, label: 'Last 7 days' },
+              { value: 30, label: 'Last 30 days' },
+              { value: 90, label: 'Last 90 days' },
+              { value: 0, label: 'All emails' },
+            ].map((option) => (
+              <RadioOption
+                key={option.value}
+                selected={data.ingest_since_days === option.value}
+                onClick={() => setData({ ...data, ingest_since_days: option.value })}
+              >
+                {option.label}
+              </RadioOption>
+            ))}
           </div>
         );
 
       case 3:
         return (
-          <div style={styles.stepContent}>
-            <div style={styles.checkboxGroup}>
-              {EMAIL_TYPE_OPTIONS.map((option) => (
-                <label key={option.value} style={styles.checkboxLabel}>
-                  <input
-                    type="checkbox"
-                    checked={data.email_types_filter.includes(option.value)}
-                    onChange={() => toggleEmailType(option.value)}
-                    style={styles.checkbox}
-                  />
-                  {option.label}
-                </label>
-              ))}
-            </div>
+          <div className="space-y-3">
+            {EMAIL_TYPE_OPTIONS.map((option) => (
+              <CheckboxOption
+                key={option.value}
+                checked={data.email_types_filter.includes(option.value)}
+                onChange={() => toggleEmailType(option.value)}
+              >
+                {option.label}
+              </CheckboxOption>
+            ))}
           </div>
         );
 
       case 4:
         return (
-          <div style={styles.stepContent}>
-            <div style={styles.radioGroup}>
-              {[
-                { value: 0, label: 'Never auto-send (always require approval)' },
-                { value: 0.95, label: 'Auto-send when >95% confident' },
-                { value: 0.9, label: 'Auto-send when >90% confident' },
-              ].map((option) => (
-                <label key={option.value} style={styles.radioLabel}>
-                  <input
-                    type="radio"
-                    name="auto_approve_threshold"
-                    value={option.value}
-                    checked={data.auto_approve_threshold === option.value}
-                    onChange={() => setData({ ...data, auto_approve_threshold: option.value })}
-                    style={styles.radio}
-                  />
-                  {option.label}
-                </label>
-              ))}
-            </div>
+          <div className="space-y-3">
+            {[
+              { value: 0, label: 'Never auto-send', description: 'Always require approval' },
+              { value: 0.95, label: 'Auto-send when >95% confident', description: 'Recommended for most users' },
+              { value: 0.9, label: 'Auto-send when >90% confident', description: 'More aggressive automation' },
+            ].map((option) => (
+              <RadioOption
+                key={option.value}
+                selected={data.auto_approve_threshold === option.value}
+                onClick={() => setData({ ...data, auto_approve_threshold: option.value })}
+                description={option.description}
+              >
+                {option.label}
+              </RadioOption>
+            ))}
           </div>
         );
 
       case 5:
         return (
-          <div style={styles.stepContent}>
-            <div style={styles.radioGroup}>
-              {[
-                { value: 'formal' as const, label: 'Formal', desc: 'Professional and polished' },
-                { value: 'friendly' as const, label: 'Friendly', desc: 'Warm and approachable' },
-                { value: 'neutral' as const, label: 'Neutral', desc: 'Balanced and straightforward' },
-              ].map((option) => (
-                <label key={option.value} style={styles.radioLabelWithDesc}>
-                  <input
-                    type="radio"
-                    name="reply_tone"
-                    value={option.value}
-                    checked={data.reply_tone === option.value}
-                    onChange={() => setData({ ...data, reply_tone: option.value })}
-                    style={styles.radio}
-                  />
-                  <div>
-                    <div style={styles.optionLabel}>{option.label}</div>
-                    <div style={styles.optionDesc}>{option.desc}</div>
-                  </div>
-                </label>
-              ))}
-            </div>
+          <div className="space-y-3">
+            {[
+              { value: 'formal' as const, label: 'Formal', description: 'Professional and polished' },
+              { value: 'friendly' as const, label: 'Friendly', description: 'Warm and approachable' },
+              { value: 'neutral' as const, label: 'Neutral', description: 'Balanced and straightforward' },
+            ].map((option) => (
+              <RadioOption
+                key={option.value}
+                selected={data.reply_tone === option.value}
+                onClick={() => setData({ ...data, reply_tone: option.value })}
+                description={option.description}
+              >
+                {option.label}
+              </RadioOption>
+            ))}
           </div>
         );
 
       case 6:
         return (
-          <div style={styles.stepContent}>
-            <textarea
-              style={styles.textarea}
+          <div className="space-y-4">
+            <Textarea
               value={data.signature}
               onChange={(e) => setData({ ...data, signature: e.target.value })}
               placeholder="Best regards,&#10;The Support Team&#10;support@example.com"
-              rows={5}
+              className="min-h-[150px]"
             />
-            <p style={styles.hint}>This will be appended to all email replies.</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              This will be appended to all email replies.
+            </p>
           </div>
         );
 
@@ -645,8 +718,11 @@ export default function SetupPage() {
 
   if (loading) {
     return (
-      <div style={styles.loadingContainer}>
-        <p>Loading...</p>
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-8 h-8 text-primary-600 animate-spin" />
+          <p className="text-sm text-slate-500 dark:text-slate-400">Loading...</p>
+        </div>
       </div>
     );
   }
@@ -656,375 +732,81 @@ export default function SetupPage() {
       <Head>
         <title>Setup - AI Email Triage</title>
       </Head>
-      <div style={styles.container}>
-        <div style={styles.card}>
-          {/* Progress indicator */}
-          <div style={styles.progress}>
-            {STEPS.map((_, i) => (
-              <div
-                key={i}
-                style={{
-                  ...styles.progressDot,
-                  backgroundColor: i + 1 <= step ? '#3b82f6' : '#e5e7eb',
-                }}
-              />
-            ))}
+
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900 p-6">
+        <Card className="w-full max-w-lg p-8">
+          {/* Logo */}
+          <div className="flex justify-center mb-6">
+            <div className="w-12 h-12 rounded-xl bg-primary-600 flex items-center justify-center">
+              <Mail className="w-6 h-6 text-white" />
+            </div>
           </div>
 
-          {/* Step counter */}
-          <p style={styles.stepCounter}>Step {step} of 6</p>
+          {/* Step Indicator */}
+          <StepIndicator currentStep={step} totalSteps={6} />
 
-          {/* Title and description */}
-          <h1 style={styles.title}>{STEPS[step - 1].title}</h1>
-          <p style={styles.description}>{STEPS[step - 1].description}</p>
+          {/* Step Counter */}
+          <p className="text-center text-sm text-slate-500 dark:text-slate-400 mb-2">
+            Step {step} of 6
+          </p>
 
-          {/* Step content */}
-          {renderStep()}
+          {/* Title and Description */}
+          <h1 className="text-xl font-semibold text-center text-slate-900 dark:text-white mb-1">
+            {STEPS[step - 1].title}
+          </h1>
+          <p className="text-center text-slate-500 dark:text-slate-400 mb-8">
+            {STEPS[step - 1].description}
+          </p>
 
-          {/* Error message */}
-          {error && <div style={styles.error}>{error}</div>}
+          {/* Step Content */}
+          <div className="mb-8">
+            {renderStep()}
+          </div>
 
-          {/* Navigation buttons */}
-          <div style={styles.actions}>
+          {/* Error */}
+          {error && (
+            <div className="mb-4 flex items-start gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400">
+              <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+              <span className="text-sm">{error}</span>
+            </div>
+          )}
+
+          {/* Navigation */}
+          <div className="flex gap-3">
             {step > 1 && (
-              <button
-                type="button"
-                style={styles.backButton}
+              <Button
+                variant="secondary"
                 onClick={handleBack}
                 disabled={saving}
               >
+                <ChevronLeft className="w-4 h-4" />
                 Back
-              </button>
+              </Button>
             )}
-            <button
-              type="button"
-              style={{
-                ...styles.nextButton,
-                ...(step === 1 && !connectionTested ? styles.nextButtonDisabled : {}),
-              }}
+            <Button
               onClick={handleNext}
-              disabled={saving || (step === 1 && !connectionTested)}
+              isLoading={saving}
+              disabled={step === 1 && !connectionTested}
+              className="flex-1"
             >
-              {saving ? 'Saving...' : step === 6 ? 'Complete Setup' : 'Next'}
-            </button>
+              {step === 6 ? 'Complete Setup' : 'Continue'}
+              {step < 6 && <ChevronRight className="w-4 h-4" />}
+            </Button>
           </div>
 
-          {/* Sign out link */}
-          <div style={styles.signOutContainer}>
+          {/* Sign Out */}
+          <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700 text-center">
             <button
               type="button"
-              style={styles.signOutLink}
               onClick={handleSignOut}
-              disabled={signingOut}
+              className="inline-flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
             >
-              {signingOut ? 'Signing out...' : 'Sign out'}
+              <LogOut className="w-4 h-4" />
+              Sign out
             </button>
           </div>
-        </div>
+        </Card>
       </div>
     </>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  loadingContainer: {
-    minHeight: '100vh',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f9fafb',
-  },
-  container: {
-    minHeight: '100vh',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f9fafb',
-    padding: '24px',
-  },
-  card: {
-    backgroundColor: 'white',
-    borderRadius: '12px',
-    padding: '40px',
-    maxWidth: '500px',
-    width: '100%',
-    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-  },
-  progress: {
-    display: 'flex',
-    justifyContent: 'center',
-    gap: '8px',
-    marginBottom: '24px',
-  },
-  progressDot: {
-    width: '10px',
-    height: '10px',
-    borderRadius: '50%',
-    transition: 'background-color 0.2s',
-  },
-  stepCounter: {
-    textAlign: 'center' as const,
-    fontSize: '14px',
-    color: '#6b7280',
-    marginBottom: '8px',
-  },
-  title: {
-    fontSize: '24px',
-    fontWeight: 700,
-    textAlign: 'center' as const,
-    margin: '0 0 8px 0',
-    color: '#111827',
-  },
-  description: {
-    fontSize: '16px',
-    textAlign: 'center' as const,
-    color: '#6b7280',
-    margin: '0 0 32px 0',
-  },
-  stepContent: {
-    marginBottom: '32px',
-  },
-  field: {
-    marginBottom: '20px',
-  },
-  label: {
-    display: 'block',
-    fontSize: '14px',
-    fontWeight: 500,
-    color: '#374151',
-    marginBottom: '8px',
-  },
-  input: {
-    width: '100%',
-    padding: '12px 16px',
-    fontSize: '15px',
-    border: '1px solid #d1d5db',
-    borderRadius: '8px',
-    outline: 'none',
-    boxSizing: 'border-box' as const,
-  },
-  providerButtons: {
-    display: 'flex',
-    gap: '12px',
-  },
-  providerButton: {
-    flex: 1,
-    padding: '12px 16px',
-    fontSize: '15px',
-    backgroundColor: 'white',
-    color: '#374151',
-    border: '1px solid #d1d5db',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontWeight: 500,
-    transition: 'all 0.2s',
-  },
-  providerButtonActive: {
-    backgroundColor: '#3b82f6',
-    color: 'white',
-    borderColor: '#3b82f6',
-  },
-  hint: {
-    fontSize: '13px',
-    color: '#6b7280',
-    marginTop: '8px',
-  },
-  link: {
-    color: '#3b82f6',
-    textDecoration: 'underline',
-  },
-  testButton: {
-    width: '100%',
-    padding: '12px 24px',
-    fontSize: '15px',
-    backgroundColor: '#10b981',
-    color: 'white',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontWeight: 500,
-  },
-  microsoftButton: {
-    width: '100%',
-    padding: '14px 24px',
-    fontSize: '15px',
-    backgroundColor: '#0078d4',
-    color: 'white',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontWeight: 500,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '8px',
-  },
-  oauthInfo: {
-    padding: '16px',
-    backgroundColor: '#eff6ff',
-    border: '1px solid #3b82f6',
-    borderRadius: '8px',
-    marginBottom: '20px',
-  },
-  advancedSection: {
-    marginBottom: '20px',
-  },
-  advancedSummary: {
-    cursor: 'pointer',
-    fontSize: '14px',
-    color: '#6b7280',
-    padding: '8px 0',
-  },
-  advancedContent: {
-    padding: '16px',
-    backgroundColor: '#f9fafb',
-    borderRadius: '8px',
-    marginTop: '8px',
-  },
-  advancedHint: {
-    fontSize: '13px',
-    color: '#6b7280',
-    marginBottom: '16px',
-  },
-  connectionError: {
-    padding: '12px 16px',
-    backgroundColor: '#fef2f2',
-    color: '#dc2626',
-    borderRadius: '8px',
-    fontSize: '14px',
-    marginTop: '16px',
-  },
-  connectionSuccess: {
-    padding: '12px 16px',
-    backgroundColor: '#f0fdf4',
-    color: '#16a34a',
-    borderRadius: '8px',
-    fontSize: '14px',
-    marginTop: '16px',
-  },
-  radioGroup: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    gap: '12px',
-  },
-  radioLabel: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-    padding: '12px 16px',
-    border: '1px solid #e5e7eb',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontSize: '15px',
-    transition: 'border-color 0.2s, background-color 0.2s',
-  },
-  radioLabelWithDesc: {
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: '12px',
-    padding: '12px 16px',
-    border: '1px solid #e5e7eb',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontSize: '15px',
-    transition: 'border-color 0.2s, background-color 0.2s',
-  },
-  radio: {
-    width: '18px',
-    height: '18px',
-    accentColor: '#3b82f6',
-  },
-  optionLabel: {
-    fontWeight: 500,
-    color: '#111827',
-  },
-  optionDesc: {
-    fontSize: '13px',
-    color: '#6b7280',
-    marginTop: '2px',
-  },
-  checkboxGroup: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    gap: '12px',
-  },
-  checkboxLabel: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-    padding: '12px 16px',
-    border: '1px solid #e5e7eb',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontSize: '15px',
-    transition: 'border-color 0.2s, background-color 0.2s',
-  },
-  checkbox: {
-    width: '18px',
-    height: '18px',
-    accentColor: '#3b82f6',
-  },
-  textarea: {
-    width: '100%',
-    padding: '12px 16px',
-    fontSize: '15px',
-    border: '1px solid #d1d5db',
-    borderRadius: '8px',
-    resize: 'vertical' as const,
-    fontFamily: 'inherit',
-    lineHeight: '1.5',
-    boxSizing: 'border-box' as const,
-  },
-  error: {
-    padding: '12px 16px',
-    backgroundColor: '#fef2f2',
-    color: '#dc2626',
-    borderRadius: '6px',
-    marginBottom: '16px',
-    fontSize: '14px',
-  },
-  actions: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    gap: '12px',
-  },
-  backButton: {
-    padding: '12px 24px',
-    fontSize: '15px',
-    backgroundColor: 'white',
-    color: '#374151',
-    border: '1px solid #d1d5db',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontWeight: 500,
-  },
-  nextButton: {
-    flex: 1,
-    padding: '12px 24px',
-    fontSize: '15px',
-    backgroundColor: '#3b82f6',
-    color: 'white',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontWeight: 500,
-  },
-  nextButtonDisabled: {
-    backgroundColor: '#9ca3af',
-    cursor: 'not-allowed',
-  },
-  signOutContainer: {
-    marginTop: '24px',
-    textAlign: 'center' as const,
-    borderTop: '1px solid #e5e7eb',
-    paddingTop: '20px',
-  },
-  signOutLink: {
-    background: 'none',
-    border: 'none',
-    color: '#6b7280',
-    fontSize: '14px',
-    cursor: 'pointer',
-    padding: '4px 8px',
-  },
-};

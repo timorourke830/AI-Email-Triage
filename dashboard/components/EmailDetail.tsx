@@ -1,4 +1,20 @@
 import { useState } from 'react';
+import {
+  Check,
+  X,
+  Edit3,
+  Clock,
+  Paperclip,
+  Sparkles,
+  Send,
+  History,
+  FileText,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/Button';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
+import { StatusBadge, ClassificationBadge } from '@/components/ui/Badge';
+import { Input, Textarea } from '@/components/ui/Input';
 import type { Email, Attachment, AuditLog, EmailStatus } from '@/lib/types';
 
 interface EmailDetailProps {
@@ -10,24 +26,15 @@ interface EmailDetailProps {
   onProcess?: () => Promise<void>;
 }
 
-const statusColors: Record<EmailStatus, string> = {
-  pending: '#6b7280',
-  processing: '#3b82f6',
-  awaiting_approval: '#f59e0b',
-  sent: '#10b981',
-  rejected: '#ef4444',
-};
-
-const statusLabels: Record<EmailStatus, string> = {
-  pending: 'Pending',
-  processing: 'Processing',
-  awaiting_approval: 'Awaiting Approval',
-  sent: 'Sent',
-  rejected: 'Rejected',
-};
-
 function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleString();
+  return new Date(dateStr).toLocaleString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 export default function EmailDetail({
@@ -48,7 +55,6 @@ export default function EmailDetail({
   const handleApprove = async () => {
     setLoading(true);
     try {
-      // Pass edited reply if user has saved edits or is currently editing with changes
       const hasChanges = editedReply !== email.draft_reply;
       const edited = (hasSavedEdits || isEditing) && hasChanges ? editedReply : undefined;
       await onApprove(edited);
@@ -65,7 +71,6 @@ export default function EmailDetail({
   const handleCancelEdits = () => {
     setEditedReply(email.draft_reply || '');
     setIsEditing(false);
-    // Don't reset hasSavedEdits if they previously saved
   };
 
   const handleReject = async () => {
@@ -91,436 +96,265 @@ export default function EmailDetail({
   const canProcess = email.status === 'pending' && !!onProcess;
 
   return (
-    <div style={styles.container}>
-      {/* Header */}
-      <div style={styles.header}>
-        <div style={styles.headerInfo}>
-          <h1 style={styles.subject}>{email.subject}</h1>
-          <span
-            style={{
-              ...styles.status,
-              backgroundColor: statusColors[email.status],
-            }}
-          >
-            {statusLabels[email.status]}
-          </span>
-        </div>
-        <div style={styles.meta}>
-          <div><strong>From:</strong> {email.from_address}</div>
-          <div><strong>To:</strong> {email.to_address}</div>
-          <div><strong>Received:</strong> {formatDate(email.created_at)}</div>
+    <div className="max-w-4xl mx-auto space-y-6">
+      {/* Header Card */}
+      <Card>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-3 mb-3">
+              <h1 className="text-xl font-semibold text-slate-900 dark:text-white truncate">
+                {email.subject}
+              </h1>
+              <StatusBadge status={email.status} />
+            </div>
+
+            <div className="space-y-1.5 text-sm">
+              <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                <span className="font-medium text-slate-900 dark:text-slate-200">From:</span>
+                {email.from_address}
+              </div>
+              <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                <span className="font-medium text-slate-900 dark:text-slate-200">To:</span>
+                {email.to_address}
+              </div>
+              <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                <Clock className="w-4 h-4" />
+                {formatDate(email.created_at)}
+              </div>
+            </div>
+          </div>
+
           {email.classification && (
-            <div>
-              <strong>Classification:</strong> {email.classification}
-              {email.classification_confidence && (
-                <span style={styles.confidence}>
-                  ({Math.round(email.classification_confidence * 100)}% confidence)
-                </span>
-              )}
+            <div className="text-right">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-1.5">Classification</p>
+              <ClassificationBadge
+                classification={email.classification}
+                confidence={email.classification_confidence ?? undefined}
+              />
             </div>
           )}
         </div>
-      </div>
-
-      {/* Original Email */}
-      <div style={styles.section}>
-        <h2 style={styles.sectionTitle}>Original Email</h2>
-        <div style={styles.emailBody}>{email.body}</div>
-      </div>
+      </Card>
 
       {/* Process Button for Pending Emails */}
       {canProcess && (
-        <div style={styles.processSection}>
-          <div style={styles.processInfo}>
-            <h3 style={styles.processTitle}>This email hasn&apos;t been processed yet</h3>
-            <p style={styles.processDesc}>
-              Click the button to classify this email and generate a draft reply.
-            </p>
+        <div className="p-4 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-amber-100 dark:bg-amber-900/30">
+                <Sparkles className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div>
+                <h3 className="font-medium text-amber-800 dark:text-amber-300">
+                  Ready for AI Processing
+                </h3>
+                <p className="text-sm text-amber-700 dark:text-amber-400">
+                  Click to classify this email and generate a draft reply
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={handleProcess}
+              isLoading={processing}
+              className="shrink-0"
+            >
+              <Sparkles className="w-4 h-4" />
+              Process with AI
+            </Button>
           </div>
-          <button
-            style={styles.processButton}
-            onClick={handleProcess}
-            disabled={processing}
-          >
-            {processing ? 'Processing...' : 'Process with AI'}
-          </button>
         </div>
       )}
+
+      {/* Original Email */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <FileText className="w-4 h-4" />
+            Original Email
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800/50 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+            {email.body}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Attachments */}
       {attachments.length > 0 && (
-        <div style={styles.section}>
-          <h2 style={styles.sectionTitle}>Attachments ({attachments.length})</h2>
-          <ul style={styles.attachmentList}>
-            {attachments.map((att) => (
-              <li key={att.id} style={styles.attachmentItem}>
-                {att.filename} <span style={styles.attachmentType}>({att.content_type})</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {/* Extracted Data */}
-      {email.extracted_data && (
-        <div style={styles.section}>
-          <h2 style={styles.sectionTitle}>Extracted Information</h2>
-          <pre style={styles.jsonBlock}>
-            {JSON.stringify(email.extracted_data, null, 2)}
-          </pre>
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Paperclip className="w-4 h-4" />
+              Attachments ({attachments.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {attachments.map((att) => (
+                <div
+                  key={att.id}
+                  className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50"
+                >
+                  <div className="p-2 rounded bg-slate-200 dark:bg-slate-700">
+                    <Paperclip className="w-4 h-4 text-slate-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-slate-900 dark:text-white">
+                      {att.filename}
+                    </p>
+                    <p className="text-xs text-slate-500">{att.content_type}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Draft Reply */}
       {email.draft_reply && (
-        <div style={styles.section}>
-          <h2 style={styles.sectionTitle}>
-            Draft Reply
-            {hasSavedEdits && !isEditing && (
-              <span style={styles.editedBadge}>Edited</span>
-            )}
-          </h2>
-          {isEditing ? (
-            <div>
-              <textarea
-                style={styles.textarea}
-                value={editedReply}
-                onChange={(e) => setEditedReply(e.target.value)}
-                rows={12}
-              />
-              <div style={styles.editActions}>
-                <button
-                  style={styles.saveButton}
-                  onClick={handleSaveEdits}
-                >
-                  Save Changes
-                </button>
-                <button
-                  style={styles.cancelButton}
-                  onClick={handleCancelEdits}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          ) : (
-            <>
-              <div style={styles.emailBody}>
-                {hasSavedEdits ? editedReply : email.draft_reply}
-              </div>
-              {canApprove && (
-                <button
-                  style={styles.editButton}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Edit3 className="w-4 h-4" />
+                Draft Reply
+                {hasSavedEdits && !isEditing && (
+                  <span className="ml-2 px-2 py-0.5 text-xs font-medium rounded-full bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400">
+                    Edited
+                  </span>
+                )}
+              </CardTitle>
+              {canApprove && !isEditing && (
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => setIsEditing(true)}
                 >
-                  {hasSavedEdits ? 'Edit Draft Again' : 'Edit Draft Before Sending'}
-                </button>
+                  <Edit3 className="w-4 h-4" />
+                  Edit
+                </Button>
               )}
-            </>
-          )}
-        </div>
-      )}
-
-      {/* Final Reply (if sent) */}
-      {email.final_reply && email.status === 'sent' && (
-        <div style={styles.section}>
-          <h2 style={styles.sectionTitle}>Sent Reply</h2>
-          <div style={styles.emailBody}>{email.final_reply}</div>
-          {email.sent_at && (
-            <div style={styles.sentAt}>Sent at: {formatDate(email.sent_at)}</div>
-          )}
-        </div>
-      )}
-
-      {/* Actions */}
-      {canApprove && (
-        <div style={styles.actions}>
-          <div style={styles.rejectSection}>
-            <input
-              type="text"
-              placeholder="Rejection reason (optional)"
-              style={styles.rejectInput}
-              value={rejectReason}
-              onChange={(e) => setRejectReason(e.target.value)}
-            />
-            <button
-              style={styles.rejectButton}
-              onClick={handleReject}
-              disabled={loading}
-            >
-              {loading ? 'Processing...' : 'Reject'}
-            </button>
-          </div>
-          <button
-            style={styles.approveButton}
-            onClick={handleApprove}
-            disabled={loading}
-          >
-            {loading ? 'Sending...' : hasSavedEdits ? 'Send Edited Reply' : 'Approve & Send'}
-          </button>
-        </div>
-      )}
-
-      {/* Audit Log */}
-      <div style={styles.section}>
-        <h2 style={styles.sectionTitle}>Activity Log</h2>
-        <div style={styles.timeline}>
-          {auditLogs.map((log) => (
-            <div key={log.id} style={styles.timelineItem}>
-              <div style={styles.timelineTime}>{formatDate(log.created_at)}</div>
-              <div style={styles.timelineAction}>
-                <strong>{log.action}</strong> by {log.actor}
-                {log.details && (
-                  <div style={styles.timelineDetails}>
-                    {JSON.stringify(log.details)}
-                  </div>
-                )}
-              </div>
             </div>
-          ))}
-        </div>
-      </div>
+          </CardHeader>
+          <CardContent>
+            {isEditing ? (
+              <div className="space-y-3">
+                <Textarea
+                  value={editedReply}
+                  onChange={(e) => setEditedReply(e.target.value)}
+                  className="min-h-[200px]"
+                />
+                <div className="flex gap-2">
+                  <Button onClick={handleSaveEdits}>
+                    Save Changes
+                  </Button>
+                  <Button variant="secondary" onClick={handleCancelEdits}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800/50 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                {hasSavedEdits ? editedReply : email.draft_reply}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Sent Reply */}
+      {email.final_reply && email.status === 'sent' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base text-emerald-700 dark:text-emerald-400">
+              <Send className="w-4 h-4" />
+              Sent Reply
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="p-4 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+              {email.final_reply}
+            </div>
+            {email.sent_at && (
+              <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
+                Sent at: {formatDate(email.sent_at)}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Action Buttons */}
+      {canApprove && (
+        <Card className="bg-slate-50 dark:bg-slate-800/50">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <Input
+                type="text"
+                placeholder="Rejection reason (optional)"
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                className="w-64"
+              />
+              <Button
+                variant="danger"
+                onClick={handleReject}
+                isLoading={loading}
+              >
+                <X className="w-4 h-4" />
+                Reject
+              </Button>
+            </div>
+            <Button
+              variant="success"
+              onClick={handleApprove}
+              isLoading={loading}
+              size="lg"
+            >
+              <Check className="w-4 h-4" />
+              {hasSavedEdits ? 'Send Edited Reply' : 'Approve & Send'}
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {/* Activity Log */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <History className="w-4 h-4" />
+            Activity Log
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {auditLogs.length === 0 ? (
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              No activity recorded yet.
+            </p>
+          ) : (
+            <div className="relative border-l-2 border-slate-200 dark:border-slate-700 pl-4 space-y-4">
+              {auditLogs.map((log) => (
+                <div key={log.id} className="relative">
+                  <div className="absolute -left-[21px] w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-slate-600" />
+                  <p className="text-xs text-slate-400 dark:text-slate-500">
+                    {formatDate(log.created_at)}
+                  </p>
+                  <p className="text-sm text-slate-700 dark:text-slate-300">
+                    <span className="font-medium">{log.action}</span> by {log.actor}
+                  </p>
+                  {log.details && (
+                    <pre className="mt-1 text-xs text-slate-500 dark:text-slate-400 overflow-auto">
+                      {JSON.stringify(log.details, null, 2)}
+                    </pre>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    maxWidth: '900px',
-    margin: '0 auto',
-  },
-  header: {
-    marginBottom: '24px',
-    paddingBottom: '16px',
-    borderBottom: '1px solid #e5e7eb',
-  },
-  headerInfo: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-    marginBottom: '12px',
-  },
-  subject: {
-    fontSize: '24px',
-    fontWeight: 600,
-    margin: 0,
-    color: '#111827',
-  },
-  status: {
-    display: 'inline-block',
-    padding: '4px 10px',
-    borderRadius: '4px',
-    color: 'white',
-    fontSize: '12px',
-    fontWeight: 500,
-  },
-  meta: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '4px',
-    fontSize: '14px',
-    color: '#4b5563',
-  },
-  confidence: {
-    marginLeft: '4px',
-    color: '#9ca3af',
-  },
-  section: {
-    marginBottom: '24px',
-  },
-  sectionTitle: {
-    fontSize: '16px',
-    fontWeight: 600,
-    marginBottom: '12px',
-    color: '#374151',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-  },
-  emailBody: {
-    backgroundColor: '#f9fafb',
-    padding: '16px',
-    borderRadius: '8px',
-    whiteSpace: 'pre-wrap',
-    fontSize: '14px',
-    lineHeight: 1.6,
-    color: '#374151',
-  },
-  attachmentList: {
-    listStyle: 'none',
-    padding: 0,
-    margin: 0,
-  },
-  attachmentItem: {
-    padding: '8px 12px',
-    backgroundColor: '#f3f4f6',
-    borderRadius: '4px',
-    marginBottom: '4px',
-    fontSize: '14px',
-  },
-  attachmentType: {
-    color: '#9ca3af',
-    fontSize: '12px',
-  },
-  jsonBlock: {
-    backgroundColor: '#1f2937',
-    color: '#e5e7eb',
-    padding: '16px',
-    borderRadius: '8px',
-    overflow: 'auto',
-    fontSize: '12px',
-  },
-  textarea: {
-    width: '100%',
-    padding: '12px',
-    fontSize: '14px',
-    border: '1px solid #d1d5db',
-    borderRadius: '8px',
-    resize: 'vertical',
-    fontFamily: 'inherit',
-  },
-  editButton: {
-    width: '100%',
-    padding: '12px 24px',
-    fontSize: '14px',
-    fontWeight: 500,
-    backgroundColor: '#3b82f6',
-    color: 'white',
-    border: 'none',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    marginTop: '12px',
-  },
-  editActions: {
-    marginTop: '8px',
-    display: 'flex',
-    gap: '8px',
-  },
-  saveButton: {
-    padding: '8px 16px',
-    fontSize: '13px',
-    backgroundColor: '#3b82f6',
-    color: 'white',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontWeight: 500,
-  },
-  cancelButton: {
-    padding: '8px 16px',
-    fontSize: '13px',
-    backgroundColor: '#e5e7eb',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-  },
-  editedBadge: {
-    fontSize: '11px',
-    fontWeight: 500,
-    color: '#3b82f6',
-    backgroundColor: '#dbeafe',
-    padding: '2px 8px',
-    borderRadius: '4px',
-  },
-  actions: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: '20px',
-    backgroundColor: '#f9fafb',
-    borderRadius: '8px',
-    marginBottom: '24px',
-  },
-  rejectSection: {
-    display: 'flex',
-    gap: '8px',
-  },
-  rejectInput: {
-    padding: '8px 12px',
-    fontSize: '14px',
-    border: '1px solid #d1d5db',
-    borderRadius: '4px',
-    width: '200px',
-  },
-  rejectButton: {
-    padding: '8px 16px',
-    fontSize: '14px',
-    backgroundColor: '#ef4444',
-    color: 'white',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-  },
-  approveButton: {
-    padding: '10px 24px',
-    fontSize: '14px',
-    backgroundColor: '#10b981',
-    color: 'white',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontWeight: 500,
-  },
-  sentAt: {
-    marginTop: '8px',
-    fontSize: '12px',
-    color: '#6b7280',
-  },
-  timeline: {
-    borderLeft: '2px solid #e5e7eb',
-    paddingLeft: '16px',
-  },
-  timelineItem: {
-    marginBottom: '16px',
-    position: 'relative',
-  },
-  timelineTime: {
-    fontSize: '12px',
-    color: '#9ca3af',
-    marginBottom: '4px',
-  },
-  timelineAction: {
-    fontSize: '14px',
-    color: '#374151',
-  },
-  timelineDetails: {
-    fontSize: '12px',
-    color: '#6b7280',
-    marginTop: '4px',
-  },
-  processSection: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: '24px',
-    backgroundColor: '#fef3c7',
-    borderRadius: '8px',
-    marginBottom: '24px',
-    border: '1px solid #fcd34d',
-  },
-  processInfo: {
-    flex: 1,
-  },
-  processTitle: {
-    fontSize: '16px',
-    fontWeight: 600,
-    color: '#92400e',
-    margin: '0 0 4px 0',
-  },
-  processDesc: {
-    fontSize: '14px',
-    color: '#a16207',
-    margin: 0,
-  },
-  processButton: {
-    padding: '12px 24px',
-    fontSize: '14px',
-    fontWeight: 500,
-    backgroundColor: '#3b82f6',
-    color: 'white',
-    border: 'none',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    marginLeft: '16px',
-  },
-};

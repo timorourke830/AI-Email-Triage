@@ -2,7 +2,11 @@ import { useState } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
+import { Mail, AlertCircle } from 'lucide-react';
 import { getSupabaseBrowserClient } from '@/lib/supabase';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Card } from '@/components/ui/Card';
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -71,174 +75,83 @@ export default function SignUpPage() {
       <Head>
         <title>Sign Up - AI Email Triage</title>
       </Head>
-      <div style={styles.container}>
-        <div style={styles.card}>
-          <div style={styles.header}>
-            <h1 style={styles.title}>Create Account</h1>
-            <p style={styles.subtitle}>Get started with AI Email Triage</p>
+
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900 p-6">
+        <Card className="w-full max-w-md p-8">
+          {/* Logo */}
+          <div className="flex justify-center mb-8">
+            <div className="w-12 h-12 rounded-xl bg-primary-600 flex items-center justify-center">
+              <Mail className="w-6 h-6 text-white" />
+            </div>
           </div>
 
-          <form onSubmit={handleSubmit} style={styles.form}>
-            <div style={styles.field}>
-              <label htmlFor="email" style={styles.label}>
-                Email
-              </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                style={styles.input}
-                placeholder="you@example.com"
-                required
-                autoComplete="email"
-              />
-            </div>
+          {/* Header */}
+          <div className="text-center mb-8">
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
+              Create your account
+            </h1>
+            <p className="text-slate-500 dark:text-slate-400">
+              Get started with AI Email Triage
+            </p>
+          </div>
 
-            <div style={styles.field}>
-              <label htmlFor="password" style={styles.label}>
-                Password
-              </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                style={styles.input}
-                placeholder="At least 8 characters"
-                required
-                autoComplete="new-password"
-                minLength={8}
-              />
-            </div>
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <Input
+              label="Email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              autoComplete="email"
+              required
+            />
 
-            <div style={styles.field}>
-              <label htmlFor="confirmPassword" style={styles.label}>
-                Confirm Password
-              </label>
-              <input
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                style={styles.input}
-                placeholder="Re-enter your password"
-                required
-                autoComplete="new-password"
-                minLength={8}
-              />
-            </div>
+            <Input
+              label="Password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="At least 8 characters"
+              autoComplete="new-password"
+              required
+              hint="Use 8 or more characters with a mix of letters, numbers & symbols"
+            />
 
-            {error && <div style={styles.error}>{error}</div>}
+            <Input
+              label="Confirm Password"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Re-enter your password"
+              autoComplete="new-password"
+              required
+            />
 
-            <button
-              type="submit"
-              style={styles.button}
-              disabled={loading}
-            >
-              {loading ? 'Creating account...' : 'Create Account'}
-            </button>
+            {error && (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400">
+                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                <span className="text-sm">{error}</span>
+              </div>
+            )}
+
+            <Button type="submit" isLoading={loading} className="w-full">
+              Create Account
+            </Button>
           </form>
 
-          <div style={styles.footer}>
-            <p style={styles.footerText}>
+          <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-700 text-center">
+            <p className="text-sm text-slate-500 dark:text-slate-400">
               Already have an account?{' '}
-              <Link href="/auth/signin" style={styles.link}>
+              <Link
+                href="/auth/signin"
+                className="font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400"
+              >
                 Sign in
               </Link>
             </p>
           </div>
-        </div>
+        </Card>
       </div>
     </>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    minHeight: '100vh',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f9fafb',
-    padding: '24px',
-  },
-  card: {
-    backgroundColor: 'white',
-    borderRadius: '12px',
-    padding: '40px',
-    maxWidth: '400px',
-    width: '100%',
-    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-  },
-  header: {
-    textAlign: 'center' as const,
-    marginBottom: '32px',
-  },
-  title: {
-    fontSize: '28px',
-    fontWeight: 700,
-    margin: '0 0 8px 0',
-    color: '#111827',
-  },
-  subtitle: {
-    fontSize: '16px',
-    color: '#6b7280',
-    margin: 0,
-  },
-  form: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    gap: '20px',
-  },
-  field: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    gap: '6px',
-  },
-  label: {
-    fontSize: '14px',
-    fontWeight: 500,
-    color: '#374151',
-  },
-  input: {
-    padding: '12px 16px',
-    fontSize: '15px',
-    border: '1px solid #d1d5db',
-    borderRadius: '8px',
-    outline: 'none',
-    transition: 'border-color 0.2s',
-  },
-  error: {
-    padding: '12px 16px',
-    backgroundColor: '#fef2f2',
-    color: '#dc2626',
-    borderRadius: '8px',
-    fontSize: '14px',
-  },
-  button: {
-    padding: '14px 24px',
-    fontSize: '16px',
-    fontWeight: 500,
-    backgroundColor: '#3b82f6',
-    color: 'white',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    marginTop: '8px',
-  },
-  footer: {
-    marginTop: '24px',
-    textAlign: 'center' as const,
-  },
-  footerText: {
-    fontSize: '14px',
-    color: '#6b7280',
-    margin: 0,
-  },
-  link: {
-    color: '#3b82f6',
-    textDecoration: 'none',
-    fontWeight: 500,
-  },
-};

@@ -2,7 +2,11 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
+import { Mail, AlertCircle, CheckCircle } from 'lucide-react';
 import { getSupabaseBrowserClient } from '@/lib/supabase';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Card } from '@/components/ui/Card';
 
 export default function SignInPage() {
   const router = useRouter();
@@ -50,179 +54,88 @@ export default function SignInPage() {
       <Head>
         <title>Sign In - AI Email Triage</title>
       </Head>
-      <div style={styles.container}>
-        <div style={styles.card}>
-          <div style={styles.header}>
-            <h1 style={styles.title}>Sign In</h1>
-            <p style={styles.subtitle}>Welcome back to AI Email Triage</p>
+
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900 p-6">
+        <Card className="w-full max-w-md p-8">
+          {/* Logo */}
+          <div className="flex justify-center mb-8">
+            <div className="w-12 h-12 rounded-xl bg-primary-600 flex items-center justify-center">
+              <Mail className="w-6 h-6 text-white" />
+            </div>
           </div>
 
-          <form onSubmit={handleSubmit} style={styles.form}>
-            <div style={styles.field}>
-              <label htmlFor="email" style={styles.label}>
-                Email
-              </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                style={styles.input}
-                placeholder="you@example.com"
-                required
-                autoComplete="email"
-              />
-            </div>
+          {/* Header */}
+          <div className="text-center mb-8">
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
+              Welcome back
+            </h1>
+            <p className="text-slate-500 dark:text-slate-400">
+              Sign in to AI Email Triage
+            </p>
+          </div>
 
-            <div style={styles.field}>
-              <label htmlFor="password" style={styles.label}>
-                Password
-              </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                style={styles.input}
-                placeholder="Enter your password"
-                required
-                autoComplete="current-password"
-              />
-            </div>
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <Input
+              label="Email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              autoComplete="email"
+              required
+            />
 
-            {successMessage && <div style={styles.success}>{successMessage}</div>}
-            {error && <div style={styles.error}>{error}</div>}
+            <Input
+              label="Password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter your password"
+              autoComplete="current-password"
+              required
+            />
 
-            <button
-              type="submit"
-              style={styles.button}
-              disabled={loading}
-            >
-              {loading ? 'Signing in...' : 'Sign In'}
-            </button>
+            {successMessage && (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400">
+                <CheckCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                <span className="text-sm">{successMessage}</span>
+              </div>
+            )}
+
+            {error && (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400">
+                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                <span className="text-sm">{error}</span>
+              </div>
+            )}
+
+            <Button type="submit" isLoading={loading} className="w-full">
+              Sign In
+            </Button>
           </form>
 
-          <div style={styles.forgotPasswordContainer}>
-            <Link href="/auth/forgot-password" style={styles.forgotLink}>
+          <div className="mt-4 text-center">
+            <Link
+              href="/auth/forgot-password"
+              className="text-sm text-slate-500 dark:text-slate-400 hover:text-primary-600 dark:hover:text-primary-400"
+            >
               Forgot password?
             </Link>
           </div>
 
-          <div style={styles.footer}>
-            <p style={styles.footerText}>
+          <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-700 text-center">
+            <p className="text-sm text-slate-500 dark:text-slate-400">
               Don&apos;t have an account?{' '}
-              <Link href="/auth/signup" style={styles.link}>
+              <Link
+                href="/auth/signup"
+                className="font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400"
+              >
                 Sign up
               </Link>
             </p>
           </div>
-        </div>
+        </Card>
       </div>
     </>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    minHeight: '100vh',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f9fafb',
-    padding: '24px',
-  },
-  card: {
-    backgroundColor: 'white',
-    borderRadius: '12px',
-    padding: '40px',
-    maxWidth: '400px',
-    width: '100%',
-    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-  },
-  header: {
-    textAlign: 'center' as const,
-    marginBottom: '32px',
-  },
-  title: {
-    fontSize: '28px',
-    fontWeight: 700,
-    margin: '0 0 8px 0',
-    color: '#111827',
-  },
-  subtitle: {
-    fontSize: '16px',
-    color: '#6b7280',
-    margin: 0,
-  },
-  form: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    gap: '20px',
-  },
-  field: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    gap: '6px',
-  },
-  label: {
-    fontSize: '14px',
-    fontWeight: 500,
-    color: '#374151',
-  },
-  input: {
-    padding: '12px 16px',
-    fontSize: '15px',
-    border: '1px solid #d1d5db',
-    borderRadius: '8px',
-    outline: 'none',
-    transition: 'border-color 0.2s',
-  },
-  error: {
-    padding: '12px 16px',
-    backgroundColor: '#fef2f2',
-    color: '#dc2626',
-    borderRadius: '8px',
-    fontSize: '14px',
-  },
-  success: {
-    padding: '12px 16px',
-    backgroundColor: '#f0fdf4',
-    color: '#16a34a',
-    borderRadius: '8px',
-    fontSize: '14px',
-  },
-  button: {
-    padding: '14px 24px',
-    fontSize: '16px',
-    fontWeight: 500,
-    backgroundColor: '#3b82f6',
-    color: 'white',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    marginTop: '8px',
-  },
-  footer: {
-    marginTop: '24px',
-    textAlign: 'center' as const,
-  },
-  footerText: {
-    fontSize: '14px',
-    color: '#6b7280',
-    margin: 0,
-  },
-  link: {
-    color: '#3b82f6',
-    textDecoration: 'none',
-    fontWeight: 500,
-  },
-  forgotPasswordContainer: {
-    textAlign: 'center' as const,
-    marginTop: '16px',
-  },
-  forgotLink: {
-    fontSize: '14px',
-    color: '#6b7280',
-    textDecoration: 'none',
-  },
-};

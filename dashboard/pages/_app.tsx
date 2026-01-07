@@ -4,9 +4,26 @@ import type { AppProps } from 'next/app';
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
 import { getSupabaseBrowserClient } from '@/lib/supabase';
 import { getSettings } from '@/lib/api';
+import { ThemeProvider } from '@/lib/theme';
+import '@/styles/globals.css';
 
 // Pages that don't require authentication
 const AUTH_ROUTES = ['/auth/signin', '/auth/signup', '/auth/forgot-password', '/auth/reset-password', '/auth/confirm'];
+
+function LoadingScreen() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-10 h-10 rounded-lg bg-primary-600 flex items-center justify-center animate-pulse">
+          <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+          </svg>
+        </div>
+        <p className="text-sm text-slate-500 dark:text-slate-400">Loading...</p>
+      </div>
+    </div>
+  );
+}
 
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter();
@@ -85,63 +102,15 @@ export default function App({ Component, pageProps }: AppProps) {
   // Show loading state while checking auth
   if (checking) {
     return (
-      <>
-        <style jsx global>{`
-          * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-          }
-          html, body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-              Oxygen, Ubuntu, Cantarell, 'Fira Sans', 'Droid Sans',
-              'Helvetica Neue', sans-serif;
-            background-color: #f9fafb;
-            color: #111827;
-            line-height: 1.5;
-          }
-        `}</style>
-        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <p>Loading...</p>
-        </div>
-      </>
+      <ThemeProvider>
+        <LoadingScreen />
+      </ThemeProvider>
     );
   }
 
   return (
-    <>
-      <style jsx global>{`
-        * {
-          box-sizing: border-box;
-          margin: 0;
-          padding: 0;
-        }
-
-        html,
-        body {
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-            Oxygen, Ubuntu, Cantarell, 'Fira Sans', 'Droid Sans',
-            'Helvetica Neue', sans-serif;
-          background-color: #f9fafb;
-          color: #111827;
-          line-height: 1.5;
-        }
-
-        a {
-          color: inherit;
-          text-decoration: none;
-        }
-
-        button {
-          cursor: pointer;
-        }
-
-        button:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
-      `}</style>
+    <ThemeProvider>
       <Component {...pageProps} />
-    </>
+    </ThemeProvider>
   );
 }

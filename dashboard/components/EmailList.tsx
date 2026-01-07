@@ -1,4 +1,8 @@
 import Link from 'next/link';
+import { Eye, MoreHorizontal } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { StatusBadge, ClassificationBadge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
 import type { Email, EmailStatus } from '@/lib/types';
 
 interface EmailListProps {
@@ -6,29 +10,25 @@ interface EmailListProps {
   loading?: boolean;
 }
 
-const statusColors: Record<EmailStatus, string> = {
-  pending: '#6b7280',
-  processing: '#3b82f6',
-  awaiting_approval: '#f59e0b',
-  sent: '#10b981',
-  rejected: '#ef4444',
-};
-
-const statusLabels: Record<EmailStatus, string> = {
-  pending: 'Pending',
-  processing: 'Processing',
-  awaiting_approval: 'Awaiting Approval',
-  sent: 'Sent',
-  rejected: 'Rejected',
-};
-
 function formatDate(dateStr: string): string {
   const date = new Date(dateStr);
+  const now = new Date();
+  const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) {
+    return date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } else if (diffDays === 1) {
+    return 'Yesterday';
+  } else if (diffDays < 7) {
+    return date.toLocaleDateString('en-US', { weekday: 'short' });
+  }
+
   return date.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
   });
 }
 
@@ -37,135 +37,160 @@ function truncate(str: string, len: number): string {
   return str.slice(0, len) + '...';
 }
 
+// Skeleton row for loading state
+function SkeletonRow() {
+  return (
+    <tr className="border-b border-slate-100 dark:border-slate-800">
+      <td className="px-4 py-3">
+        <div className="h-5 w-24 skeleton rounded" />
+      </td>
+      <td className="px-4 py-3">
+        <div className="h-5 w-32 skeleton rounded" />
+      </td>
+      <td className="px-4 py-3">
+        <div className="h-5 w-48 skeleton rounded" />
+      </td>
+      <td className="px-4 py-3">
+        <div className="h-5 w-20 skeleton rounded" />
+      </td>
+      <td className="px-4 py-3">
+        <div className="h-5 w-16 skeleton rounded" />
+      </td>
+      <td className="px-4 py-3">
+        <div className="h-8 w-16 skeleton rounded" />
+      </td>
+    </tr>
+  );
+}
+
 export default function EmailList({ emails, loading }: EmailListProps) {
   if (loading) {
     return (
-      <div style={styles.loading}>
-        Loading emails...
+      <div className="card overflow-hidden">
+        <table className="w-full">
+          <thead className="bg-slate-50 dark:bg-slate-800/50">
+            <tr>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Status
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                From
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Subject
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Classification
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Date
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Actions
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {[1, 2, 3, 4, 5].map((i) => (
+              <SkeletonRow key={i} />
+            ))}
+          </tbody>
+        </table>
       </div>
     );
   }
 
   if (emails.length === 0) {
     return (
-      <div style={styles.empty}>
-        No emails found
+      <div className="card p-12 text-center">
+        <div className="mx-auto w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-4">
+          <svg className="w-6 h-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+          </svg>
+        </div>
+        <h3 className="text-lg font-medium text-slate-900 dark:text-white mb-1">
+          No emails found
+        </h3>
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Try adjusting your filters or refresh to check for new emails.
+        </p>
       </div>
     );
   }
 
   return (
-    <div style={styles.container}>
-      <table style={styles.table}>
-        <thead>
-          <tr>
-            <th style={styles.th}>Status</th>
-            <th style={styles.th}>From</th>
-            <th style={styles.th}>Subject</th>
-            <th style={styles.th}>Classification</th>
-            <th style={styles.th}>Date</th>
-            <th style={styles.th}>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {emails.map((email) => (
-            <tr key={email.id} style={styles.tr}>
-              <td style={styles.td}>
-                <span
-                  style={{
-                    ...styles.status,
-                    backgroundColor: statusColors[email.status],
-                  }}
-                >
-                  {statusLabels[email.status]}
-                </span>
-              </td>
-              <td style={styles.td}>{truncate(email.from_address, 30)}</td>
-              <td style={styles.td}>{truncate(email.subject, 40)}</td>
-              <td style={styles.td}>
-                {email.classification ? (
-                  <span style={styles.classification}>
-                    {email.classification}
-                    {email.classification_confidence && (
-                      <span style={styles.confidence}>
-                        {Math.round(email.classification_confidence * 100)}%
-                      </span>
-                    )}
-                  </span>
-                ) : (
-                  <span style={styles.notClassified}>-</span>
-                )}
-              </td>
-              <td style={styles.td}>{formatDate(email.created_at)}</td>
-              <td style={styles.td}>
-                <Link href={`/emails/${email.id}`} style={styles.link}>
-                  View
-                </Link>
-              </td>
+    <div className="card overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead className="bg-slate-50 dark:bg-slate-800/50 sticky top-0">
+            <tr>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Status
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                From
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Subject
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Classification
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Date
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Actions
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            {emails.map((email) => (
+              <tr
+                key={email.id}
+                className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+              >
+                <td className="px-4 py-3 whitespace-nowrap">
+                  <StatusBadge status={email.status} />
+                </td>
+                <td className="px-4 py-3">
+                  <span className="text-sm text-slate-700 dark:text-slate-300">
+                    {truncate(email.from_address, 30)}
+                  </span>
+                </td>
+                <td className="px-4 py-3">
+                  <span className="text-sm font-medium text-slate-900 dark:text-white">
+                    {truncate(email.subject, 40)}
+                  </span>
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap">
+                  {email.classification ? (
+                    <ClassificationBadge
+                      classification={email.classification}
+                      confidence={email.classification_confidence ?? undefined}
+                    />
+                  ) : (
+                    <span className="text-sm text-slate-400">-</span>
+                  )}
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap">
+                  <span className="text-sm text-slate-500 dark:text-slate-400">
+                    {formatDate(email.created_at)}
+                  </span>
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap">
+                  <Link href={`/emails/${email.id}`}>
+                    <Button variant="ghost" size="sm" className="gap-1.5">
+                      <Eye className="w-4 h-4" />
+                      View
+                    </Button>
+                  </Link>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    overflowX: 'auto',
-  },
-  table: {
-    width: '100%',
-    borderCollapse: 'collapse',
-    fontSize: '14px',
-  },
-  th: {
-    textAlign: 'left',
-    padding: '12px 16px',
-    borderBottom: '2px solid #e5e7eb',
-    fontWeight: 600,
-    color: '#374151',
-  },
-  tr: {
-    borderBottom: '1px solid #e5e7eb',
-  },
-  td: {
-    padding: '12px 16px',
-    color: '#4b5563',
-  },
-  status: {
-    display: 'inline-block',
-    padding: '4px 8px',
-    borderRadius: '4px',
-    color: 'white',
-    fontSize: '12px',
-    fontWeight: 500,
-  },
-  classification: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '4px',
-    textTransform: 'capitalize',
-  },
-  confidence: {
-    fontSize: '11px',
-    color: '#9ca3af',
-  },
-  notClassified: {
-    color: '#9ca3af',
-  },
-  link: {
-    color: '#3b82f6',
-    textDecoration: 'none',
-  },
-  loading: {
-    padding: '40px',
-    textAlign: 'center',
-    color: '#6b7280',
-  },
-  empty: {
-    padding: '40px',
-    textAlign: 'center',
-    color: '#6b7280',
-  },
-};

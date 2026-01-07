@@ -2,7 +2,11 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
+import { Mail, AlertCircle, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { getSupabaseBrowserClient } from '@/lib/supabase';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Card } from '@/components/ui/Card';
 
 type PageState = 'loading' | 'ready' | 'invalid' | 'success';
 
@@ -92,19 +96,14 @@ export default function ResetPasswordPage() {
         <Head>
           <title>Reset Password - AI Email Triage</title>
         </Head>
-        <div style={styles.container}>
-          <div style={styles.card}>
-            <div style={styles.loading}>
-              <div style={styles.spinner}></div>
-              <p>Verifying session...</p>
+        <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900 p-6">
+          <Card className="w-full max-w-md p-8">
+            <div className="flex flex-col items-center gap-4 py-8">
+              <Loader2 className="w-8 h-8 text-primary-600 animate-spin" />
+              <p className="text-slate-500 dark:text-slate-400">Verifying session...</p>
             </div>
-          </div>
+          </Card>
         </div>
-        <style jsx global>{`
-          @keyframes spin {
-            to { transform: rotate(360deg); }
-          }
-        `}</style>
       </>
     );
   }
@@ -116,17 +115,22 @@ export default function ResetPasswordPage() {
         <Head>
           <title>Password Reset - AI Email Triage</title>
         </Head>
-        <div style={styles.container}>
-          <div style={styles.card}>
-            <div style={styles.header}>
-              <div style={styles.iconSuccess}>&#10003;</div>
-              <h1 style={styles.title}>Password Reset!</h1>
-              <p style={styles.subtitle}>
-                Your password has been successfully updated.
-                Redirecting to sign in...
+        <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900 p-6">
+          <Card className="w-full max-w-md p-8">
+            <div className="flex justify-center mb-6">
+              <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                <CheckCircle className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+              </div>
+            </div>
+            <div className="text-center">
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
+                Password Reset!
+              </h1>
+              <p className="text-slate-500 dark:text-slate-400">
+                Your password has been successfully updated. Redirecting to sign in...
               </p>
             </div>
-          </div>
+          </Card>
         </div>
       </>
     );
@@ -139,28 +143,30 @@ export default function ResetPasswordPage() {
         <Head>
           <title>Reset Password - AI Email Triage</title>
         </Head>
-        <div style={styles.container}>
-          <div style={styles.card}>
-            <div style={styles.header}>
-              <div style={styles.iconError}>!</div>
-              <h1 style={styles.title}>Invalid Reset Link</h1>
-              <p style={styles.subtitle}>
+        <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900 p-6">
+          <Card className="w-full max-w-md p-8">
+            <div className="flex justify-center mb-6">
+              <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                <XCircle className="w-6 h-6 text-red-600 dark:text-red-400" />
+              </div>
+            </div>
+            <div className="text-center mb-6">
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
+                Invalid Reset Link
+              </h1>
+              <p className="text-slate-500 dark:text-slate-400">
                 This password reset link is invalid or has expired.
               </p>
             </div>
-
-            <div style={styles.footer}>
-              <Link href="/auth/forgot-password" style={styles.buttonLink}>
-                Request New Reset Link
+            <div className="space-y-3">
+              <Link href="/auth/forgot-password">
+                <Button className="w-full">Request New Reset Link</Button>
               </Link>
-              <p style={styles.footerText}>
-                or{' '}
-                <Link href="/auth/signin" style={styles.link}>
-                  back to sign in
-                </Link>
-              </p>
+              <Link href="/auth/signin">
+                <Button variant="secondary" className="w-full">Back to Sign In</Button>
+              </Link>
             </div>
-          </div>
+          </Card>
         </div>
       </>
     );
@@ -172,203 +178,61 @@ export default function ResetPasswordPage() {
       <Head>
         <title>Reset Password - AI Email Triage</title>
       </Head>
-      <div style={styles.container}>
-        <div style={styles.card}>
-          <div style={styles.header}>
-            <h1 style={styles.title}>Reset Password</h1>
-            <p style={styles.subtitle}>Enter your new password below</p>
+
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900 p-6">
+        <Card className="w-full max-w-md p-8">
+          {/* Logo */}
+          <div className="flex justify-center mb-8">
+            <div className="w-12 h-12 rounded-xl bg-primary-600 flex items-center justify-center">
+              <Mail className="w-6 h-6 text-white" />
+            </div>
           </div>
 
-          <form onSubmit={handleSubmit} style={styles.form}>
-            <div style={styles.field}>
-              <label htmlFor="password" style={styles.label}>
-                New Password
-              </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                style={styles.input}
-                placeholder="At least 8 characters"
-                required
-                autoComplete="new-password"
-                minLength={8}
-                autoFocus
-              />
-            </div>
+          {/* Header */}
+          <div className="text-center mb-8">
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
+              Reset Password
+            </h1>
+            <p className="text-slate-500 dark:text-slate-400">
+              Enter your new password below
+            </p>
+          </div>
 
-            <div style={styles.field}>
-              <label htmlFor="confirmPassword" style={styles.label}>
-                Confirm New Password
-              </label>
-              <input
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                style={styles.input}
-                placeholder="Confirm new password"
-                required
-                autoComplete="new-password"
-                minLength={8}
-              />
-            </div>
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <Input
+              label="New Password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="At least 8 characters"
+              autoComplete="new-password"
+              autoFocus
+              required
+            />
 
-            {error && <div style={styles.error}>{error}</div>}
+            <Input
+              label="Confirm New Password"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Confirm new password"
+              autoComplete="new-password"
+              required
+            />
 
-            <button
-              type="submit"
-              style={styles.button}
-              disabled={loading}
-            >
-              {loading ? 'Updating Password...' : 'Reset Password'}
-            </button>
+            {error && (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400">
+                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                <span className="text-sm">{error}</span>
+              </div>
+            )}
+
+            <Button type="submit" isLoading={loading} className="w-full">
+              Reset Password
+            </Button>
           </form>
-        </div>
+        </Card>
       </div>
     </>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    minHeight: '100vh',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f9fafb',
-    padding: '24px',
-  },
-  card: {
-    backgroundColor: 'white',
-    borderRadius: '12px',
-    padding: '40px',
-    maxWidth: '400px',
-    width: '100%',
-    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-  },
-  header: {
-    textAlign: 'center' as const,
-    marginBottom: '32px',
-  },
-  iconSuccess: {
-    width: '48px',
-    height: '48px',
-    borderRadius: '50%',
-    backgroundColor: '#dcfce7',
-    color: '#16a34a',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: '24px',
-    fontWeight: 'bold',
-    margin: '0 auto 16px auto',
-  },
-  iconError: {
-    width: '48px',
-    height: '48px',
-    borderRadius: '50%',
-    backgroundColor: '#fef2f2',
-    color: '#dc2626',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: '24px',
-    fontWeight: 'bold',
-    margin: '0 auto 16px auto',
-  },
-  title: {
-    fontSize: '28px',
-    fontWeight: 700,
-    margin: '0 0 8px 0',
-    color: '#111827',
-  },
-  subtitle: {
-    fontSize: '16px',
-    color: '#6b7280',
-    margin: 0,
-  },
-  form: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    gap: '20px',
-  },
-  field: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    gap: '6px',
-  },
-  label: {
-    fontSize: '14px',
-    fontWeight: 500,
-    color: '#374151',
-  },
-  input: {
-    padding: '12px 16px',
-    fontSize: '15px',
-    border: '1px solid #d1d5db',
-    borderRadius: '8px',
-    outline: 'none',
-    transition: 'border-color 0.2s',
-  },
-  error: {
-    padding: '12px 16px',
-    backgroundColor: '#fef2f2',
-    color: '#dc2626',
-    borderRadius: '8px',
-    fontSize: '14px',
-  },
-  button: {
-    padding: '14px 24px',
-    fontSize: '16px',
-    fontWeight: 500,
-    backgroundColor: '#3b82f6',
-    color: 'white',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    marginTop: '8px',
-  },
-  buttonLink: {
-    display: 'block',
-    padding: '14px 24px',
-    fontSize: '16px',
-    fontWeight: 500,
-    backgroundColor: '#3b82f6',
-    color: 'white',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    textAlign: 'center' as const,
-    textDecoration: 'none',
-    marginBottom: '16px',
-  },
-  loading: {
-    textAlign: 'center' as const,
-    color: '#6b7280',
-    padding: '40px 0',
-  },
-  spinner: {
-    width: '32px',
-    height: '32px',
-    border: '3px solid #e5e7eb',
-    borderTopColor: '#3b82f6',
-    borderRadius: '50%',
-    margin: '0 auto 16px auto',
-    animation: 'spin 1s linear infinite',
-  },
-  footer: {
-    textAlign: 'center' as const,
-  },
-  footerText: {
-    fontSize: '14px',
-    color: '#6b7280',
-    margin: 0,
-  },
-  link: {
-    color: '#3b82f6',
-    textDecoration: 'none',
-    fontWeight: 500,
-  },
-};
