@@ -41,7 +41,12 @@
       "Bash(git -C \"C:\\\\Dev\\\\ai-email-triage\" add dashboard/pages/index.tsx)",
       "Bash(git -C \"C:\\\\Dev\\\\ai-email-triage\" commit -m \"$\\(cat <<''EOF''\nExplicitly pass unreadOnly=false to fetch API\n\nForce unreadOnly=false in the API call to ensure read emails\nare fetched regardless of any cached serverless function defaults.\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(git -C \"C:\\\\Dev\\\\ai-email-triage\" add dashboard/components/EmailDetail.tsx)",
-      "Bash(git -C \"C:\\\\Dev\\\\ai-email-triage\" commit -m \"$\\(cat <<''EOF''\nMake Edit Draft button more prominent\n\n- Moved button below draft content \\(full-width\\)\n- Blue background with white text\n- Larger padding and font size\n- Clear label: \"Edit Draft Before Sending\"\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
+      "Bash(git -C \"C:\\\\Dev\\\\ai-email-triage\" commit -m \"$\\(cat <<''EOF''\nMake Edit Draft button more prominent\n\n- Moved button below draft content \\(full-width\\)\n- Blue background with white text\n- Larger padding and font size\n- Clear label: \"Edit Draft Before Sending\"\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git -C \"C:\\\\Dev\\\\ai-email-triage\" add dashboard/pages/setup.tsx)",
+      "Bash(git -C \"C:\\\\Dev\\\\ai-email-triage\" commit -m \"$\\(cat <<''EOF''\nAdd sign out link to setup page\n\n- Added subtle sign out link at bottom of setup card\n- Signs user out of Supabase auth and redirects to signin page\n- Allows users to switch accounts or go back if needed\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git checkout:*)",
+      "Bash(pnpm remove:*)",
+      "Bash(git merge:*)"
     ]
   }
 }

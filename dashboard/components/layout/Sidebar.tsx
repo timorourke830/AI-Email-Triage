@@ -3,7 +3,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import {
   LayoutDashboard,
-  Inbox,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -24,7 +23,6 @@ interface SidebarProps {
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'All Emails', href: '/emails', icon: Inbox },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
