@@ -289,15 +289,17 @@ export default function EmailDetail({
       {/* Action Buttons */}
       {canApprove && (
         <Card className="bg-slate-50 dark:bg-slate-800/50">
-          <div className="flex items-center justify-between gap-4">
+          <div className="space-y-4">
+            {/* Rejection reason input */}
+            <Input
+              type="text"
+              placeholder="Rejection reason (optional)"
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+            />
+
+            {/* Action buttons row: Reject | Edit | Approve & Send */}
             <div className="flex items-center gap-3">
-              <Input
-                type="text"
-                placeholder="Rejection reason (optional)"
-                value={rejectReason}
-                onChange={(e) => setRejectReason(e.target.value)}
-                className="w-64"
-              />
               <Button
                 variant="danger"
                 onClick={handleReject}
@@ -306,16 +308,26 @@ export default function EmailDetail({
                 <X className="w-4 h-4" />
                 Reject
               </Button>
+
+              <Button
+                variant="secondary"
+                onClick={() => setIsEditing(true)}
+                disabled={isEditing}
+              >
+                <Edit3 className="w-4 h-4" />
+                Edit Draft
+              </Button>
+
+              <Button
+                variant="success"
+                onClick={handleApprove}
+                isLoading={loading}
+                className="ml-auto"
+              >
+                <Check className="w-4 h-4" />
+                {hasSavedEdits ? 'Send Edited Reply' : 'Approve & Send'}
+              </Button>
             </div>
-            <Button
-              variant="success"
-              onClick={handleApprove}
-              isLoading={loading}
-              size="lg"
-            >
-              <Check className="w-4 h-4" />
-              {hasSavedEdits ? 'Send Edited Reply' : 'Approve & Send'}
-            </Button>
           </div>
         </Card>
       )}
