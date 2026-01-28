@@ -29,10 +29,20 @@ export default function SignInPage() {
     setError(null);
 
     try {
+      console.log('[SignIn] Getting Supabase client...');
       const supabase = getSupabaseBrowserClient();
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+
+      console.log('[SignIn] Attempting sign in for:', email);
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
+      });
+
+      console.log('[SignIn] Response:', {
+        hasData: !!data,
+        hasSession: !!data?.session,
+        hasError: !!signInError,
+        errorMessage: signInError?.message,
       });
 
       if (signInError) {
@@ -44,10 +54,13 @@ export default function SignInPage() {
       // Redirect to home - _app.tsx will handle routing to setup if needed
       router.push('/');
     } catch (err) {
-      console.error('Sign in error:', err);
+      console.error('[SignIn] Exception caught:', err);
+      console.error('[SignIn] Error type:', err?.constructor?.name);
+      console.error('[SignIn] Error message:', err instanceof Error ? err.message : String(err));
+
       // Handle network errors specifically
       if (err instanceof Error) {
-        if (err.message.includes('fetch') || err.message.includes('network')) {
+        if (err.message.includes('fetch') || err.message.includes('network') || err.message.includes('Failed to fetch')) {
           setError('Unable to connect to authentication service. Please check your internet connection and try again.');
         } else {
           setError(err.message);

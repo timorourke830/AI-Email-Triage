@@ -18,19 +18,37 @@ export function getSupabaseBrowserClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
+  // Debug logging - safe to log URL (it's public), but not the key
+  console.log('[Supabase] Initializing browser client:', {
+    url: url || '(not set)',
+    hasAnonKey: !!anonKey,
+    anonKeyLength: anonKey?.length || 0,
+  });
+
   if (!url || !anonKey) {
-    console.error('Supabase configuration missing:', {
+    console.error('[Supabase] Configuration missing:', {
       hasUrl: !!url,
       hasAnonKey: !!anonKey,
-      // Log partial URL for debugging (safe - this is public info)
-      urlPrefix: url?.substring(0, 30),
     });
     throw new Error(
       'Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY. Please check your environment variables.'
     );
   }
 
+  // Validate URL format
+  try {
+    const parsedUrl = new URL(url);
+    console.log('[Supabase] URL validated:', {
+      protocol: parsedUrl.protocol,
+      host: parsedUrl.host,
+    });
+  } catch (e) {
+    console.error('[Supabase] Invalid URL format:', url);
+    throw new Error(`Invalid NEXT_PUBLIC_SUPABASE_URL: ${url}`);
+  }
+
   browserClient = createBrowserClient(url, anonKey);
+  console.log('[Supabase] Browser client created successfully');
   return browserClient;
 }
 

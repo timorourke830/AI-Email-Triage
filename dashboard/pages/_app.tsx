@@ -56,9 +56,11 @@ export default function App({ Component, pageProps }: AppProps) {
     let supabase: ReturnType<typeof getSupabaseBrowserClient>;
 
     try {
+      console.log('[App] Initializing Supabase client...');
       supabase = getSupabaseBrowserClient();
+      console.log('[App] Supabase client initialized');
     } catch (err) {
-      console.error('Failed to initialize Supabase client:', err);
+      console.error('[App] Failed to initialize Supabase client:', err);
       setError('Configuration error. Please contact support.');
       setChecking(false);
       return;
@@ -66,9 +68,16 @@ export default function App({ Component, pageProps }: AppProps) {
 
     async function checkAuth() {
       const isOnAuthRoute = AUTH_ROUTES.includes(router.pathname);
+      console.log('[App] Checking auth, pathname:', router.pathname, 'isAuthRoute:', isOnAuthRoute);
 
       try {
+        console.log('[App] Calling getSession...');
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        console.log('[App] getSession result:', {
+          hasSession: !!session,
+          hasError: !!sessionError,
+          errorMessage: sessionError?.message,
+        });
 
         if (sessionError) {
           console.error('Session error:', sessionError);
