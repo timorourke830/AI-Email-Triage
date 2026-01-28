@@ -44,7 +44,17 @@ export default function SignInPage() {
       // Redirect to home - _app.tsx will handle routing to setup if needed
       router.push('/');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      console.error('Sign in error:', err);
+      // Handle network errors specifically
+      if (err instanceof Error) {
+        if (err.message.includes('fetch') || err.message.includes('network')) {
+          setError('Unable to connect to authentication service. Please check your internet connection and try again.');
+        } else {
+          setError(err.message);
+        }
+      } else {
+        setError('An unexpected error occurred. Please try again.');
+      }
       setLoading(false);
     }
   };
